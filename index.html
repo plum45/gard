@@ -55,7 +55,7 @@
     
     /* ซ่อน scrollbar */
     ::-webkit-scrollbar { display: none; }
-    body { -ms-overflow-style: none; scrollbar-width: none; overflow-x: hidden; touch-action: manipulation; }
+    body { -ms-overflow-style: none; scrollbar-width: none; overflow-x: hidden; touch-action: none; }
 
     /* ปรับปรุงความคมชัดของภาพ */
     .crisp-image { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
@@ -177,7 +177,7 @@
       const [justDrawn, setJustDrawn] = useState(false);
       
       // State สำหรับตำแหน่งแสงไฟ
-      const [spotlightPos, setSpotlightPos] = useState({ x: 50, y: 40 });
+      const [spotlightPos, setSpotlightPos] = useState({ x: 50, y: 50 });
 
       const [aiInsight, setAiInsight] = useState("");
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -208,13 +208,12 @@
         return () => unsubscribe();
       }, [user]);
 
-      // ตรวจจับการกดเพื่อเลื่อนแสงไฟ
+      // แก้ไข: ตรวจจับการเลื่อนเมาส์/นิ้ว เพื่อเลื่อนแสงไฟโดยไม่ต้องกด
       useEffect(() => {
-        const handleInteraction = (e) => {
-          if (!isDimming) return;
-          
+        const handleMove = (e) => {
           let clientX, clientY;
-          if (e.type === 'touchstart') {
+          if (e.type === 'touchmove') {
+            // ป้องกันการ Scroll บนมือถือขณะเลื่อนแสงไฟ
             clientX = e.touches[0].clientX;
             clientY = e.touches[0].clientY;
           } else {
@@ -227,14 +226,14 @@
           setSpotlightPos({ x, y });
         };
 
-        window.addEventListener('mousedown', handleInteraction);
-        window.addEventListener('touchstart', handleInteraction);
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, { passive: false });
 
         return () => {
-          window.removeEventListener('mousedown', handleInteraction);
-          window.removeEventListener('touchstart', handleInteraction);
+          window.removeEventListener('mousemove', handleMove);
+          window.removeEventListener('touchmove', handleMove);
         };
-      }, [isDimming]);
+      }, []);
 
       const fetchAIInsight = async (role, story) => {
         if (isGeneratingAI) return;
@@ -260,7 +259,7 @@
         const newDeck = generateDeck();
         const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
         await setDoc(gameDocRef, { cards: newDeck, createdAt: new Date().toISOString() });
-        setIsFlipping(false); setIsDimming(false); setJustDrawn(false); setAiInsight(""); setSpotlightPos({ x: 50, y: 40 }); setLoading(false);
+        setIsFlipping(false); setIsDimming(false); setJustDrawn(false); setAiInsight(""); setLoading(false);
       };
 
       const handleDrawWithAnimation = async () => {
@@ -342,12 +341,12 @@
             .blood-splatter { position: absolute; background: #5a0000; mix-blend-mode: multiply; filter: blur(4px); opacity: 0.8; pointer-events: none; }
           `}} />
 
-          {/* เลเยอร์หรี่ไฟ Iris Dimmer ที่เลื่อนตามการกดได้ */}
+          {/* เลเยอร์หรี่ไฟ Iris Dimmer ที่เลื่อนตามเมาส์ได้โดยไม่ต้องกด */}
           <div 
             className={`iris-dimmer ${isDimming ? 'iris-active' : ''}`}
             style={{
               background: `radial-gradient(circle at ${spotlightPos.x}% ${spotlightPos.y}%, transparent 0%, rgba(0,0,0,0.95) 45%, rgba(0,0,0,1) 100%)`,
-              transition: 'opacity 1.5s ease-in-out, background 0.3s ease-out'
+              transition: 'opacity 1.5s ease-in-out, background 0.15s ease-out'
             }}
           ></div>
 
