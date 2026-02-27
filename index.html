@@ -40,12 +40,6 @@
     .animate-walk-in { animation: walkFromSide 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 
     /* อนิเมชันไฟดับ (Blackout) */
-    @keyframes blackoutAnim {
-      0% { opacity: 0; }
-      20% { opacity: 1; }
-      80% { opacity: 1; }
-      100% { opacity: 0; }
-    }
     .blackout-screen {
       position: fixed;
       inset: 0;
@@ -61,9 +55,15 @@
     }
     .animate-lights-on { animation: lightsOn 1s ease-out forwards; }
     
-    /* ซ่อน scrollbar */
+    /* ซ่อน scrollbar แต่ยังคงเลื่อนได้ */
     ::-webkit-scrollbar { display: none; }
-    body { -ms-overflow-style: none; scrollbar-width: none; overflow-x: hidden; touch-action: none; }
+    body { 
+      -ms-overflow-style: none; 
+      scrollbar-width: none; 
+      overflow-x: hidden; 
+      /* แก้ไข: เปลี่ยนจาก touch-action: none เป็น manipulation เพื่อให้เลื่อนได้ */
+      touch-action: manipulation; 
+    }
     .crisp-image { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
 
     /* อนิเมชันสับไพ่ */
@@ -73,7 +73,7 @@
     .animate-shuffle-2 { animation: shuffle-h2 0.8s infinite ease-in-out 0.15s; }
 
     .typing-effect { overflow: hidden; white-space: normal; animation: typing 3.5s steps(40, end); }
-    @keyframes typing { from { max-height: 0; opacity: 0; } to { max-height: 200px; opacity: 1; } }
+    @keyframes typing { from { max-height: 0; opacity: 0; } to { max-height: 500px; opacity: 1; } }
   </style>
 </head>
 <body class="bg-[#050505] text-white">
@@ -121,17 +121,13 @@
       const [user, setUser] = useState(null);
       const [gameState, setGameState] = useState(null);
       const [loading, setLoading] = useState(true);
-      
-      // ลำดับหน้าต้อนรับ: 'arrival' -> 'blackout' -> 'ready'
       const [introStage, setIntroStage] = useState('arrival'); 
       const [hasEntered, setHasEntered] = useState(false); 
-      
       const [isShuffling, setIsShuffling] = useState(false);
       const [isFlipping, setIsFlipping] = useState(false);
       const [isDimming, setIsDimming] = useState(false); 
       const [justDrawn, setJustDrawn] = useState(false);
       const [spotlightPos, setSpotlightPos] = useState({ x: 50, y: 50 });
-
       const [aiInsight, setAiInsight] = useState("");
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
       const [aiError, setAiError] = useState("");
@@ -159,27 +155,31 @@
         return () => unsubscribe();
       }, [user]);
 
-      // จัดการลำดับ Intro Animation
       useEffect(() => {
         if (introStage === 'arrival') {
-          const timer = setTimeout(() => setIntroStage('blackout'), 3200); // แสดงตัวละคร 3.2 วิ
+          const timer = setTimeout(() => setIntroStage('blackout'), 3200);
           return () => clearTimeout(timer);
         } else if (introStage === 'blackout') {
-          const timer = setTimeout(() => setIntroStage('ready'), 1000); // ดับไฟ 1 วิ
+          const timer = setTimeout(() => setIntroStage('ready'), 1000);
           return () => clearTimeout(timer);
         }
       }, [introStage]);
 
-      // ติดตามตำแหน่งเมาส์สำหรับ Iris Spotlight
       useEffect(() => {
         const handleMove = (e) => {
-          const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-          const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+          const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+          const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
           setSpotlightPos({ x: (clientX / window.innerWidth) * 100, y: (clientY / window.innerHeight) * 100 });
         };
+        // แก้ไข: ใช้ passive: true เพื่อให้บราวเซอร์เลื่อนหน้าจอได้ปกติ
         window.addEventListener('mousemove', handleMove);
-        window.addEventListener('touchmove', handleMove, { passive: false });
-        return () => { window.removeEventListener('mousemove', handleMove); window.removeEventListener('touchmove', handleMove); };
+        window.addEventListener('touchmove', handleMove, { passive: true });
+        window.addEventListener('touchstart', handleMove, { passive: true });
+        return () => { 
+          window.removeEventListener('mousemove', handleMove); 
+          window.removeEventListener('touchmove', handleMove);
+          window.removeEventListener('touchstart', handleMove);
+        };
       }, []);
 
       const fetchAIInsight = async (role, story) => {
@@ -223,7 +223,6 @@
       if (!hasEntered) {
         return (
           <div className="min-h-screen relative flex flex-col items-center justify-center overflow-hidden bg-black">
-            {/* Stage 1: Arrival (Character + Spotlight) */}
             {introStage === 'arrival' && (
               <div className="relative flex flex-col items-center">
                 <div className="absolute inset-0 spotlight-overlay z-10"></div>
@@ -234,14 +233,10 @@
                 </div>
               </div>
             )}
-
-            {/* Stage 2: Blackout (Total Darkness) */}
             {introStage === 'blackout' && <div className="blackout-screen"></div>}
-
-            {/* Stage 3: Ready (Background + UI) */}
             {introStage === 'ready' && (
               <div className="w-full h-full flex flex-col items-center justify-center animate-lights-on p-4"
-                   style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', width: '100vw', height: '100vh' }}>
+                   style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', width: '100vw', height: '100vh' }}>
                 <div className="absolute inset-0 bg-black/60"></div>
                 <div className="relative z-10 text-center max-w-lg">
                   <h1 className="text-5xl md:text-7xl font-black text-red-600 mb-2 tracking-[0.25em] drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]">MURDER MYSTERY</h1>
@@ -260,12 +255,12 @@
       }
 
       return (
-        <div className="min-h-screen relative font-sans p-4 md:p-8 flex flex-col items-center bg-black/40" 
-             style={{backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', backgroundAttachment: 'fixed'}}>
+        <div className="min-h-screen relative font-sans p-4 md:p-8 flex flex-col items-center" 
+             style={{backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', backgroundAttachment: 'fixed'}}>
           
           <div className={`iris-dimmer ${isDimming ? 'iris-active' : ''}`} style={{ background: `radial-gradient(circle at ${spotlightPos.x}% ${spotlightPos.y}%, transparent 0%, rgba(0,0,0,0.95) 45%, rgba(0,0,0,1) 100%)`, transition: 'opacity 1.5s, background 0.15s' }}></div>
 
-          <div className="max-w-3xl w-full mx-auto space-y-6 relative z-20 flex-1 flex flex-col">
+          <div className="max-w-3xl w-full mx-auto space-y-6 relative z-20 flex-1 flex flex-col pb-20">
             <div className={`bg-black/85 p-5 rounded-2xl border-t-4 border-red-900 shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-opacity duration-1000 ${isDimming ? 'opacity-30' : 'opacity-100'}`}>
               <div className="flex flex-col sm:flex-row justify-between items-center">
                 <div className="text-center sm:text-left">
@@ -304,7 +299,7 @@
                         <div className="w-full h-full border border-white/5 flex flex-col items-center justify-center bg-black/35 backdrop-blur-[1px] rounded-xl p-3 text-center">
                           <div className="w-16 h-16 bg-black/40 rounded-full flex items-center justify-center mb-3 border border-white/10"><span className="text-4xl opacity-90 drop-shadow-lg">🩸</span></div>
                           <span className="text-base font-mono text-white font-black tracking-[0.3em] uppercase">Top Secret</span>
-                          {!isFlipping && !isDimming && <span className="mt-10 bg-red-600/80 text-white px-5 py-1.5 rounded-full text-[10px] font-bold animate-pulse border border-white/20 tracking-[0.2em] uppercase">Tap to Reveal</span>}
+                          {!isFlipping && !isDimming && <span className="mt-10 bg-red-600/80 text-white px-5 py-1.5 rounded-full text-[10px] font-bold animate-pulse border border-white/20 tracking-[0.2em] uppercase text-center">Tap to Reveal</span>}
                         </div>
                       </div>
                       <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_60px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden crisp-image ${myCard.color} border-[#0a0a0a] bg-cover bg-center`} style={{ backgroundImage: `url("${myCard.image}")` }}>
