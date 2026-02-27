@@ -3,12 +3,32 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-// --- 1. การตั้งค่า Firebase ---
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const app = initializeApp(firebaseConfig);
+// --- 1. การตั้งค่า Firebase (เตรียมพร้อมสำหรับ Vercel / Vite) ---
+// เมื่อคุณนำโค้ดไปรันในโปรเจกต์ Vite (Vercel) ให้เปลี่ยนข้อความ String ด้านล่าง
+// ให้เป็นตัวแปรแบบนี้ครับ -> apiKey: import.meta.env.VITE_FIREBASE_API_KEY
+const firebaseConfig = {
+  apiKey: "ใส่_API_KEY_ของคุณที่นี่",
+  authDomain: "ใส่_AUTH_DOMAIN_ของคุณที่นี่",
+  projectId: "ใส่_PROJECT_ID_ของคุณที่นี่",
+  storageBucket: "ใส่_STORAGE_BUCKET_ของคุณที่นี่",
+  messagingSenderId: "ใส่_SENDER_ID_ของคุณที่นี่",
+  appId: "ใส่_APP_ID_ของคุณที่นี่"
+};
+
+// ใช้ Config ตัวใหม่ (แต่ยังเผื่อโค้ดไว้ให้รันในหน้า Preview นี้ได้ด้วย)
+const finalConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+const app = initializeApp(finalConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'card-game-app';
+
+// ฟังก์ชันช่วยจัดการ Path ฐานข้อมูล (รองรับทั้งระบบพรีวิว และ Vercel)
+const getGameDocRef = () => {
+  if (typeof __app_id !== 'undefined') {
+    return doc(db, 'artifacts', __app_id, 'public', 'data', 'gameState', 'main');
+  }
+  // Path สำหรับฐานข้อมูล Firestore ในโปรเจกต์ของคุณเอง
+  return doc(db, 'cardGameRooms', 'room-01'); 
+};
 
 // --- 2. ข้อมูลตั้งต้นของเกม ---
 const ROLE_TEMPLATES = [
@@ -105,7 +125,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'gameState', 'main');
+    const gameDocRef = getGameDocRef();
     
     const unsubscribe = onSnapshot(gameDocRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -122,7 +142,7 @@ export default function App() {
     if (!user) return;
     setLoading(true);
     const newDeck = generateDeck();
-    const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'gameState', 'main');
+    const gameDocRef = getGameDocRef();
     await setDoc(gameDocRef, {
       cards: newDeck,
       createdAt: new Date().toISOString()
@@ -154,7 +174,7 @@ export default function App() {
     setIsFlipping(false); // คว่ำหน้าไว้ก่อน
 
     // อัปเดตลง DB
-    const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'gameState', 'main');
+    const gameDocRef = getGameDocRef();
     await setDoc(gameDocRef, { ...gameState, cards: updatedCards }, { merge: true });
   };
 
@@ -366,5 +386,4 @@ export default function App() {
       </div>
     </div>
   );
-
 }
