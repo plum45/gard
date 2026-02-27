@@ -95,19 +95,25 @@
         story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์... หรือว่าคุณจะเป็นคนทำจริงๆ?'
       },
       { 
-        role: 'นักสืบ', count: 5, color: 'bg-blue-950', text: 'text-blue-100',
+        role: 'เทคนิคการแพทย์', count: 8, color: 'bg-cyan-950', text: 'text-cyan-100',
+        image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style-is-rich-with-textured-brushstrokes-deep-40003.jpg', // อัปเดตรูปเทคนิคการแพทย์ใหม่
+        skill: 'วิเคราะห์สารคัดหลั่ง: สามารถเลือกผู้เล่น 1 คนเพื่อตรวจสอบว่าในเทิร์นที่ผ่านมามีการใช้สกิลหรือไม่',
+        story: 'คุณเป็นผู้เชี่ยวชาญในห้องแล็บที่หลงใหลในความจริงจากการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น'
+      },
+      { 
+        role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100',
         image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg',
         skill: 'ตรวจสอบหลักฐาน: ในระหว่างเกม สามารถขอดูแฟ้มประวัติ (การ์ด) ของผู้เล่นอื่นได้ 1 คนแบบลับๆ',
         story: 'คุณถูกจ้างมาเพื่อไขคดีนี้โดยเฉพาะ หน้าที่ของคุณคือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุกให้ได้'
       },
       { 
-        role: 'ผู้เห็นเหตุการณ์', count: 5, color: 'bg-amber-950', text: 'text-amber-100',
+        role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100',
         image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png',
         skill: 'พยานปากเอก: คุณรู้คำใบ้เกี่ยวกับผู้ต้องสงสัย 1 อย่าง (สุ่มรู้สีเสื้อ หรือ ตำแหน่งที่อยู่)',
         story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ เพราะกลัวว่าฆาตกรจะมาปิดปากคุณ'
       },
       { 
-        role: 'ชาวบ้าน', count: 7, color: 'bg-emerald-950', text: 'text-emerald-100',
+        role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100',
         image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png',
         skill: 'พลังมวลชน: หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้',
         story: 'คุณเป็นแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดีฆาตกรรมนี้ สิ่งเดียวที่คุณทำได้คือต้องเอาตัวรอดและจับผิดคนให้ถูก'
@@ -116,18 +122,29 @@
 
     const TOTAL_CARDS = 25;
 
+    // ระบบการสุ่มแบบปลอดภัย (Cryptographic Random)
+    const secureRandom = () => {
+      const array = new Uint32Array(1);
+      window.crypto.getRandomValues(array);
+      return array[0] / (0xFFFFFFFF + 1);
+    };
+
     const shuffleArray = (array) => {
       const shuffled = [...array];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      for (let pass = 0; pass < 3; pass++) {
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(secureRandom() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
       }
       return shuffled;
     };
 
     const generateDeck = () => {
       let deck = [];
-      ROLE_TEMPLATES.forEach(template => {
+      const templates = shuffleArray([...ROLE_TEMPLATES]);
+      
+      templates.forEach(template => {
         for (let i = 0; i < template.count; i++) {
           deck.push({
             role: template.role,
@@ -164,7 +181,6 @@
       const [isFlipping, setIsFlipping] = useState(false);
       const [justDrawn, setJustDrawn] = useState(false);
 
-      // --- 3. แก้ไข Authentication ---
       useEffect(() => {
         const initAuth = async () => {
           try {
@@ -185,11 +201,8 @@
         return () => unsubscribe();
       }, []);
 
-      // --- 4. แก้ไข Firestore Path และ Listener ---
       useEffect(() => {
         if (!user) return;
-        
-        // ใช้เส้นทางที่ถูกต้องตาม Rule 1: /artifacts/{appId}/public/data/{collectionName}
         const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
         
         const unsubscribe = onSnapshot(gameDocRef, 
@@ -230,16 +243,12 @@
         if (!user || !gameState) return;
         if (gameState.cards.some(c => c.drawnBy === user.uid)) return;
 
-        const availableIndices = gameState.cards
-          .map((c, i) => (!c.isDrawn ? i : null))
-          .filter(i => i !== null);
-        
-        if (availableIndices.length === 0) return;
-        const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+        const availableIndex = gameState.cards.findIndex(c => !c.isDrawn);
+        if (availableIndex === -1) return;
 
         const updatedCards = [...gameState.cards];
-        updatedCards[randomIndex].isDrawn = true;
-        updatedCards[randomIndex].drawnBy = user.uid;
+        updatedCards[availableIndex].isDrawn = true;
+        updatedCards[availableIndex].drawnBy = user.uid;
 
         setJustDrawn(true); 
         setIsFlipping(false); 
@@ -377,7 +386,7 @@
                 <div className="flex flex-col items-center">
                   <div className="w-28 h-28 bg-black rounded-full border-4 border-gray-800 flex items-center justify-center shadow-[0_0_50px_rgba(220,38,38,0.25)] mb-10 relative overflow-hidden group">
                     <div className="absolute inset-0 bg-red-600/10 animate-pulse"></div>
-                    <span className="text-6xl group-hover:scale-110 transition-transform cursor-default">💉</span>
+                    <span className="text-6xl group-hover:scale-110 transition-transform cursor-default text-white">💉</span>
                   </div>
                   <button 
                     onClick={drawMyCard}
@@ -399,6 +408,7 @@
                         ${isFlipping ? 'rotate-y-180' : ''} 
                       `}
                     >
+                      {/* --- ด้านหลังการ์ด --- */}
                       <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.9)] border-2 border-[#5c4a38] bg-[#2a1b0d] flex flex-col items-center justify-center p-1 bg-cover bg-center overflow-hidden crisp-image"
                            style={{ backgroundImage: `url("${CARD_BACK_IMAGE_URL}")` }}>
                         <div className="w-full h-full border border-white/5 flex flex-col items-center justify-center bg-black/35 backdrop-blur-[1px] rounded-xl p-3 text-center">
@@ -417,6 +427,7 @@
                         </div>
                       </div>
 
+                      {/* --- ด้านหน้าการ์ด --- */}
                       <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_50px_rgba(255,255,255,0.05)] border-4 flex flex-col overflow-hidden crisp-image
                         ${myCard.color} border-[#0a0a0a] bg-cover bg-center`}
                            style={{ backgroundImage: `url("${myCard.image}")` }}
