@@ -15,10 +15,23 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
-    /* เอฟเฟกต์แสงไฟส่อง (Spotlight) */
+    /* เอฟเฟกต์แสงไฟส่องหน้าแรก (Spotlight) */
     .spotlight-overlay {
       background: radial-gradient(circle at 50% 50%, transparent 5%, rgba(0,0,0,0.92) 35%, rgba(0,0,0,1) 100%);
       pointer-events: none;
+    }
+
+    /* เอฟเฟกต์หรี่ไฟ Iris Effect (รองรับ Dynamic Position) */
+    .iris-dimmer {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      pointer-events: none;
+      transition: opacity 1.5s ease-in-out;
+      opacity: 0;
+    }
+    .iris-active {
+      opacity: 1;
     }
 
     /* อนิเมชันตัวละครเดินออกมาจากด้านข้าง */
@@ -41,20 +54,42 @@
     }
     
     /* ซ่อน scrollbar */
-    ::-webkit-scrollbar {
-      display: none;
-    }
-    body {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-      overflow-x: hidden;
-    }
+    ::-webkit-scrollbar { display: none; }
+    body { -ms-overflow-style: none; scrollbar-width: none; overflow-x: hidden; touch-action: manipulation; }
 
     /* ปรับปรุงความคมชัดของภาพ */
-    .crisp-image {
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+    .crisp-image { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+
+    /* --- อนิเมชันสับไพ่แนวนอน --- */
+    @keyframes shuffle-horizontal-1 {
+      0%, 100% { transform: translateX(0) rotate(0deg); z-index: 30; }
+      25% { transform: translateX(-130px) rotate(-5deg); z-index: 30; }
+      50% { transform: translateX(0) rotate(0deg); z-index: 10; }
+      75% { transform: translateX(50px) rotate(2deg); z-index: 10; }
     }
+    @keyframes shuffle-horizontal-2 {
+      0%, 100% { transform: translateX(0) rotate(0deg); z-index: 10; }
+      25% { transform: translateX(130px) rotate(5deg); z-index: 30; }
+      50% { transform: translateX(0) rotate(0deg); z-index: 30; }
+      75% { transform: translateX(-50px) rotate(-2deg); z-index: 10; }
+    }
+    @keyframes shuffle-horizontal-3 {
+      0%, 100% { transform: translateX(0) scale(1); }
+      50% { transform: translateX(20px) scale(0.95); }
+      75% { transform: translateX(-20px) scale(1.02); }
+    }
+
+    .animate-shuffle-layer-1 { animation: shuffle-horizontal-1 0.8s infinite ease-in-out; }
+    .animate-shuffle-layer-2 { animation: shuffle-horizontal-2 0.8s infinite ease-in-out 0.15s; }
+    .animate-shuffle-layer-3 { animation: shuffle-horizontal-3 1s infinite ease-in-out; }
+
+    /* เอฟเฟกต์การพิมพ์สำหรับ AI Insight */
+    .typing-effect {
+      overflow: hidden;
+      white-space: normal;
+      animation: typing 3.5s steps(40, end);
+    }
+    @keyframes typing { from { max-height: 0; opacity: 0; } to { max-height: 200px; opacity: 1; } }
   </style>
 </head>
 <body class="bg-[#050505] text-white">
@@ -68,7 +103,10 @@
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
     import { getFirestore, doc, setDoc, onSnapshot, collection } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
-    // --- 1. การตั้งค่า Firebase ---
+    // --- Gemini API Configuration ---
+    const apiKey = ""; 
+    const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+
     const firebaseConfig = typeof __firebase_config !== 'undefined' 
       ? JSON.parse(__firebase_config) 
       : {
@@ -86,43 +124,16 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // --- 2. ข้อมูลตั้งต้นของเกม ---
     const ROLE_TEMPLATES = [
-      { 
-        role: 'ผู้ต้องสงสัย', count: 8, color: 'bg-red-950', text: 'text-red-100',
-        image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png',
-        skill: 'คำลวงแนบเนียน: เมื่อถูกสอบสวน คุณสามารถโกหกบทบาทตัวเองได้โดยไม่ถูกจับผิดในเทิร์นแรก',
-        story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์... หรือว่าคุณจะเป็นคนทำจริงๆ?'
-      },
-      { 
-        role: 'เทคนิคการแพทย์', count: 8, color: 'bg-cyan-950', text: 'text-cyan-100',
-        image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style-is-rich-with-textured-brushstrokes-deep-40003.jpg', // อัปเดตรูปเทคนิคการแพทย์ใหม่
-        skill: 'วิเคราะห์สารคัดหลั่ง: สามารถเลือกผู้เล่น 1 คนเพื่อตรวจสอบว่าในเทิร์นที่ผ่านมามีการใช้สกิลหรือไม่',
-        story: 'คุณเป็นผู้เชี่ยวชาญในห้องแล็บที่หลงใหลในความจริงจากการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น'
-      },
-      { 
-        role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100',
-        image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg',
-        skill: 'ตรวจสอบหลักฐาน: ในระหว่างเกม สามารถขอดูแฟ้มประวัติ (การ์ด) ของผู้เล่นอื่นได้ 1 คนแบบลับๆ',
-        story: 'คุณถูกจ้างมาเพื่อไขคดีนี้โดยเฉพาะ หน้าที่ของคุณคือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุกให้ได้'
-      },
-      { 
-        role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100',
-        image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png',
-        skill: 'พยานปากเอก: คุณรู้คำใบ้เกี่ยวกับผู้ต้องสงสัย 1 อย่าง (สุ่มรู้สีเสื้อ หรือ ตำแหน่งที่อยู่)',
-        story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ เพราะกลัวว่าฆาตกรจะมาปิดปากคุณ'
-      },
-      { 
-        role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100',
-        image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png',
-        skill: 'พลังมวลชน: หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้',
-        story: 'คุณเป็นแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดีฆาตกรรมนี้ สิ่งเดียวที่คุณทำได้คือต้องเอาตัวรอดและจับผิดคนให้ถูก'
-      }
+      { role: 'ผู้ต้องสงสัย', count: 8, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'คำลวงแนบเนียน: เมื่อถูกสอบสวน คุณสามารถโกหกบทบาทตัวเองได้โดยไม่ถูกจับผิดในเทิร์นแรก', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
+      { role: 'เทคนิคการแพทย์', count: 8, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์สารคัดหลั่ง: ตรวจสอบว่าผู้เล่นมีการใช้สกิลหรือไม่', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
+      { role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100', image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg', skill: 'ตรวจสอบหลักฐาน: ขอดูแฟ้มประวัติของผู้เล่นอื่นได้ 1 คนแบบลับๆ', story: 'คุณถูกจ้างมาไขคดีนี้ หน้าที่คือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุก' },
+      { role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100', image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png', skill: 'พยานปากเอก: รู้คำใบ้เกี่ยวกับผู้ต้องสงสัย 1 อย่าง', story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ' },
+      { role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน: บังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้เมื่อโหวตรวมกัน', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
     ];
 
     const TOTAL_CARDS = 25;
 
-    // ระบบการสุ่มแบบปลอดภัย (Cryptographic Random)
     const secureRandom = () => {
       const array = new Uint32Array(1);
       window.crypto.getRandomValues(array);
@@ -143,19 +154,9 @@
     const generateDeck = () => {
       let deck = [];
       const templates = shuffleArray([...ROLE_TEMPLATES]);
-      
       templates.forEach(template => {
         for (let i = 0; i < template.count; i++) {
-          deck.push({
-            role: template.role,
-            color: template.color,
-            text: template.text,
-            image: template.image,
-            skill: template.skill, 
-            story: template.story,
-            isDrawn: false,
-            drawnBy: null,
-          });
+          deck.push({ ...template, isDrawn: false, drawnBy: null });
         }
       });
       return shuffleArray(deck).map((card, index) => ({ ...card, id: index }));
@@ -164,22 +165,23 @@
     const BACKGROUND_IMAGE_URL = 'https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg';
     const CARD_BACK_IMAGE_URL = 'https://i.postimg.cc/yNy79y33/creation_2471378801.png'; 
 
-    const backgroundStyle = {
-      backgroundColor: '#0a0a0a',
-      backgroundImage: `url("${BACKGROUND_IMAGE_URL}")`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundAttachment: 'fixed',
-    };
-
     function App() {
       const [user, setUser] = useState(null);
       const [gameState, setGameState] = useState(null);
       const [loading, setLoading] = useState(true);
       const [hasEntered, setHasEntered] = useState(false); 
       
+      const [isShuffling, setIsShuffling] = useState(false);
       const [isFlipping, setIsFlipping] = useState(false);
+      const [isDimming, setIsDimming] = useState(false); 
       const [justDrawn, setJustDrawn] = useState(false);
+      
+      // State สำหรับตำแหน่งแสงไฟ
+      const [spotlightPos, setSpotlightPos] = useState({ x: 50, y: 40 });
+
+      const [aiInsight, setAiInsight] = useState("");
+      const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+      const [aiError, setAiError] = useState("");
 
       useEffect(() => {
         const initAuth = async () => {
@@ -189,72 +191,100 @@
             } else {
               await signInAnonymously(auth);
             }
-          } catch (error) {
-            console.error("Authentication failed:", error);
-          }
+          } catch (error) { console.error("Auth Error:", error); }
         };
         initAuth();
-
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-          setUser(currentUser);
-        });
+        const unsubscribe = onAuthStateChanged(auth, setUser);
         return () => unsubscribe();
       }, []);
 
       useEffect(() => {
         if (!user) return;
         const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
-        
-        const unsubscribe = onSnapshot(gameDocRef, 
-          (docSnap) => {
-            if (docSnap.exists()) {
-              setGameState(docSnap.data());
-              setLoading(false);
-            } else {
-              resetGame();
-            }
-          },
-          (error) => {
-            console.error("Firestore Listen Error:", error);
-          }
-        );
+        const unsubscribe = onSnapshot(gameDocRef, (docSnap) => {
+          if (docSnap.exists()) { setGameState(docSnap.data()); setLoading(false); }
+          else { resetGame(); }
+        });
         return () => unsubscribe();
       }, [user]);
+
+      // ตรวจจับการกดเพื่อเลื่อนแสงไฟ
+      useEffect(() => {
+        const handleInteraction = (e) => {
+          if (!isDimming) return;
+          
+          let clientX, clientY;
+          if (e.type === 'touchstart') {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+          } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+          }
+
+          const x = (clientX / window.innerWidth) * 100;
+          const y = (clientY / window.innerHeight) * 100;
+          setSpotlightPos({ x, y });
+        };
+
+        window.addEventListener('mousedown', handleInteraction);
+        window.addEventListener('touchstart', handleInteraction);
+
+        return () => {
+          window.removeEventListener('mousedown', handleInteraction);
+          window.removeEventListener('touchstart', handleInteraction);
+        };
+      }, [isDimming]);
+
+      const fetchAIInsight = async (role, story) => {
+        if (isGeneratingAI) return;
+        setIsGeneratingAI(true);
+        setAiError("");
+        setAiInsight("");
+        const systemPrompt = "คุณคือ 'ผู้บรรยายแฟ้มคดีปริศนาฆาตกรรม' จงเขียนบทวิเคราะห์จิตวิทยาหรือคำแนะนำลับสั้นๆ ภาษาไทย";
+        const userQuery = `บทบาท: ${role}\nเรื่องราว: ${story}`;
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] } })
+          });
+          const result = await response.json();
+          setAiInsight(result.candidates?.[0]?.content?.parts?.[0]?.text || "ข้อมูลสูญหาย...");
+        } catch (err) { setAiError("สัญญาณขัดข้อง..."); }
+        finally { setIsGeneratingAI(false); }
+      };
 
       const resetGame = async () => {
         if (!user) return;
         setLoading(true);
         const newDeck = generateDeck();
         const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
-        try {
-          await setDoc(gameDocRef, {
-            cards: newDeck,
-            createdAt: new Date().toISOString()
-          });
-          setIsFlipping(false);
-          setJustDrawn(false);
-          setLoading(false);
-        } catch (error) {
-          console.error("Error resetting game:", error);
-        }
+        await setDoc(gameDocRef, { cards: newDeck, createdAt: new Date().toISOString() });
+        setIsFlipping(false); setIsDimming(false); setJustDrawn(false); setAiInsight(""); setSpotlightPos({ x: 50, y: 40 }); setLoading(false);
       };
 
-      const drawMyCard = async () => {
-        if (!user || !gameState) return;
-        if (gameState.cards.some(c => c.drawnBy === user.uid)) return;
+      const handleDrawWithAnimation = async () => {
+        if (!user || !gameState || isShuffling) return;
+        setIsShuffling(true);
+        setTimeout(async () => {
+          const availableIndex = gameState.cards.findIndex(c => !c.isDrawn);
+          if (availableIndex === -1) { setIsShuffling(false); return; }
+          const updatedCards = [...gameState.cards];
+          updatedCards[availableIndex].isDrawn = true;
+          updatedCards[availableIndex].drawnBy = user.uid;
+          setJustDrawn(true);
+          setIsShuffling(false);
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          await setDoc(gameDocRef, { ...gameState, cards: updatedCards }, { merge: true });
+        }, 2500);
+      };
 
-        const availableIndex = gameState.cards.findIndex(c => !c.isDrawn);
-        if (availableIndex === -1) return;
-
-        const updatedCards = [...gameState.cards];
-        updatedCards[availableIndex].isDrawn = true;
-        updatedCards[availableIndex].drawnBy = user.uid;
-
-        setJustDrawn(true); 
-        setIsFlipping(false); 
-
-        const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
-        await setDoc(gameDocRef, { ...gameState, cards: updatedCards }, { merge: true });
+      const handleRevealWithDimming = () => {
+        if (isFlipping || isDimming) return;
+        setIsDimming(true); 
+        setTimeout(() => {
+          setIsFlipping(true);
+        }, 1000);
       };
 
       const myCard = useMemo(() => {
@@ -265,53 +295,27 @@
       const stats = useMemo(() => {
         if (!gameState) return { drawn: 0, left: 25 };
         const drawnCards = gameState.cards.filter(c => c.isDrawn);
-        return {
-          drawn: drawnCards.length,
-          left: TOTAL_CARDS - drawnCards.length
-        };
+        return { drawn: drawnCards.length, left: TOTAL_CARDS - drawnCards.length };
       }, [gameState]);
 
       if (!hasEntered) {
         return (
           <div className="min-h-screen relative font-sans flex flex-col items-center justify-center overflow-hidden bg-black"
-               style={backgroundStyle}>
+               style={{backgroundImage: `url("${BACKGROUND_IMAGE_URL}")`, backgroundSize: 'cover'}}>
             <div className="absolute inset-0 spotlight-overlay z-10"></div>
             <div className="relative z-20 flex flex-col items-center text-center w-full">
               <div className="relative animate-walk-in flex items-center justify-center mb-2" style={{ height: '480px', width: '100%' }}>
-                <div style={{
-                  width: '2500px',
-                  height: '2500px',
-                  position: 'absolute',
-                  transform: 'scale(0.192)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <dotlottie-wc
-                    src="https://lottie.host/5d8c780d-347d-49b3-a0e0-397b051a0f02/8vwgaQzguI.lottie"
-                    style={{ width: '100%', height: '100%' }}
-                    autoplay
-                    loop
-                  ></dotlottie-wc>
+                <div style={{ width: '2500px', height: '2500px', position: 'absolute', transform: 'scale(0.192)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <dotlottie-wc src="https://lottie.host/5d8c780d-347d-49b3-a0e0-397b051a0f02/8vwgaQzguI.lottie" style={{ width: '100%', height: '100%' }} autoplay loop></dotlottie-wc>
                 </div>
               </div>
               <div className="animate-reveal px-4 max-w-lg w-full">
-                <h1 className="text-5xl md:text-7xl font-black text-red-600 mb-2 tracking-[0.25em] drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]">
-                  MURDER MYSTERY
-                </h1>
-                <p className="text-gray-400 mb-12 font-mono text-sm tracking-[0.5em] uppercase opacity-70">
-                  Criminal Archive #9942
-                </p>
-                <button 
-                  onClick={() => setHasEntered(true)}
-                  disabled={loading || !gameState}
-                  className="group relative w-full overflow-hidden rounded-full p-[3px] focus:outline-none transition-transform active:scale-95 shadow-[0_0_40px_rgba(220,38,38,0.2)]"
-                >
+                <h1 className="text-5xl md:text-7xl font-black text-red-600 mb-2 tracking-[0.25em] drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]">MURDER MYSTERY</h1>
+                <p className="text-gray-400 mb-12 font-mono text-sm tracking-[0.5em] uppercase opacity-70">Criminal Archive #9942</p>
+                <button onClick={() => setHasEntered(true)} disabled={loading || !gameState} className="group relative w-full overflow-hidden rounded-full p-[3px] focus:outline-none transition-transform active:scale-95 shadow-[0_0_40px_rgba(220,38,38,0.25)]">
                   <div className="absolute inset-0 bg-gradient-to-r from-red-600 via-red-900 to-red-600 animate-pulse"></div>
                   <div className="relative bg-[#050505] rounded-full px-12 py-5 transition-all group-hover:bg-transparent">
-                    <span className="text-white text-xl font-bold tracking-[0.4em] uppercase">
-                      {loading || !gameState ? '📂 DECRYPTING...' : '🕵️‍♂️ INVESTIGATE'}
-                    </span>
+                    <span className="text-white text-xl font-bold tracking-[0.4em] uppercase">{loading || !gameState ? '📂 DECRYPTING...' : '🕵️‍♂️ INVESTIGATE'}</span>
                   </div>
                 </button>
               </div>
@@ -320,157 +324,125 @@
         );
       }
 
-      if (loading || !gameState) return <div className="min-h-screen flex items-center justify-center" style={backgroundStyle}><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div></div>;
+      if (loading || !gameState) return <div className="min-h-screen flex items-center justify-center bg-black"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div></div>;
 
       return (
         <div className="min-h-screen relative font-sans p-4 md:p-8 overflow-x-hidden flex flex-col items-center bg-black/40 backdrop-blur-[1px]" 
-             style={backgroundStyle}>
+             style={{backgroundImage: `url("${BACKGROUND_IMAGE_URL}")`, backgroundSize: 'cover', backgroundAttachment: 'fixed'}}>
           
           <style dangerouslySetInnerHTML={{__html: `
             .perspective-1000 { perspective: 1200px; }
             .transform-style-3d { transform-style: preserve-3d; }
             .backface-hidden { backface-visibility: hidden; }
             .rotate-y-180 { transform: rotateY(180deg); }
-            
-            @keyframes shootFromMachine {
-              0% { transform: translateY(-400px) scale(0.1); opacity: 0; }
-              70% { transform: translateY(20px) scale(1.05); opacity: 1; }
-              100% { transform: translateY(0) scale(1); opacity: 1; }
-            }
-            .animate-shoot {
-              animation: shootFromMachine 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            }
-            
-            @keyframes slideUpFade {
-              from { opacity: 0; transform: translateY(40px); }
-              to { opacity: 1; transform: translateY(0); }
-            }
-            .animate-slide-up {
-              animation: slideUpFade 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;
-              opacity: 0;
-            }
-
-            @keyframes bloodDropAnim {
-              0% { transform: translateY(0) scale(1); opacity: 0.9; }
-              60% { transform: translateY(25px) scale(0.85); opacity: 0.8; }
-              100% { transform: translateY(40px) scale(0.4); opacity: 0; }
-            }
-            .animate-blood-drop-1 { animation: bloodDropAnim 2.8s infinite ease-in; }
-            .animate-blood-drop-2 { animation: bloodDropAnim 3.2s infinite ease-in 1.2s; }
-
+            @keyframes shootFromMachine { 0% { transform: translateY(-400px) scale(0.1); opacity: 0; } 70% { transform: translateY(20px) scale(1.05); opacity: 1; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+            .animate-shoot { animation: shootFromMachine 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+            @keyframes slideUpFade { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+            .animate-slide-up { animation: slideUpFade 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards; opacity: 0; }
             .blood-splatter { position: absolute; background: #5a0000; mix-blend-mode: multiply; filter: blur(4px); opacity: 0.8; pointer-events: none; }
           `}} />
+
+          {/* เลเยอร์หรี่ไฟ Iris Dimmer ที่เลื่อนตามการกดได้ */}
+          <div 
+            className={`iris-dimmer ${isDimming ? 'iris-active' : ''}`}
+            style={{
+              background: `radial-gradient(circle at ${spotlightPos.x}% ${spotlightPos.y}%, transparent 0%, rgba(0,0,0,0.95) 45%, rgba(0,0,0,1) 100%)`,
+              transition: 'opacity 1.5s ease-in-out, background 0.3s ease-out'
+            }}
+          ></div>
 
           <div className="blood-splatter w-64 h-40 rounded-[40%_60%_70%_30%] top-[-5%] left-[-5%] rotate-12"></div>
           <div className="blood-splatter w-32 h-32 rounded-[60%_40%_30%_70%] bottom-[10%] right-[-5%] -rotate-45"></div>
 
           <div className="max-w-3xl w-full mx-auto space-y-6 relative z-20 flex-1 flex flex-col">
-            <div className="bg-black/85 backdrop-blur-md p-5 rounded-2xl border-t-4 border-red-900 border-x border-b border-gray-800 shadow-[0_10px_40px_rgba(0,0,0,0.8)]">
+            <div className={`bg-black/85 backdrop-blur-md p-5 rounded-2xl border-t-4 border-red-900 border-x border-b border-gray-800 shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-opacity duration-1000 ${isDimming ? 'opacity-30' : 'opacity-100'}`}>
               <div className="flex flex-col sm:flex-row justify-between items-center pb-1">
                 <div className="text-center sm:text-left">
                   <h2 className="text-gray-100 text-xl font-black tracking-widest flex items-center justify-center sm:justify-start gap-3">
                     <span className="text-red-600 animate-pulse">🩸</span> CASE STATUS
                   </h2>
-                  <p className="text-gray-400 text-sm font-mono mt-1 tracking-tighter uppercase">
-                    Processed: <span className="text-white font-bold">{stats.drawn}</span> | Remaining: <span className="text-red-500 font-bold">{stats.left}</span>
-                  </p>
+                  <p className="text-gray-400 text-sm font-mono mt-1 tracking-tighter uppercase">Processed: <span className="text-white font-bold">{stats.drawn}</span> | Remaining: <span className="text-red-500 font-bold">{stats.left}</span></p>
                 </div>
-                <button onClick={resetGame} className="mt-4 sm:mt-0 text-xs font-bold tracking-widest bg-gray-900 hover:bg-red-950 border border-gray-700 hover:border-red-900 px-5 py-2.5 rounded-full shadow-lg text-gray-300 transition-all active:scale-95 uppercase">
-                  Reset Investigation
-                </button>
+                <button onClick={resetGame} className="mt-4 sm:mt-0 text-xs font-bold tracking-widest bg-gray-900 hover:bg-red-950 border border-gray-700 hover:border-red-900 px-5 py-2.5 rounded-full shadow-lg text-gray-300 transition-all active:scale-95 uppercase">Reset Archive</button>
               </div>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center py-6">
               {!myCard ? (
                 <div className="flex flex-col items-center">
-                  <div className="w-28 h-28 bg-black rounded-full border-4 border-gray-800 flex items-center justify-center shadow-[0_0_50px_rgba(220,38,38,0.25)] mb-10 relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-red-600/10 animate-pulse"></div>
-                    <span className="text-6xl group-hover:scale-110 transition-transform cursor-default text-white">💉</span>
-                  </div>
-                  <button 
-                    onClick={drawMyCard}
-                    disabled={stats.left === 0}
-                    className="group relative bg-red-900 hover:bg-red-700 disabled:bg-gray-900 text-white px-10 py-6 rounded-3xl text-2xl font-black tracking-[0.2em] shadow-[0_10px_0_#4a0000] active:shadow-[0_0px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 disabled:border-gray-800 disabled:text-gray-600 flex flex-col items-center uppercase overflow-hidden"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
-                    <span className="relative z-10">Scan Blood</span>
+                  {isShuffling ? (
+                    <div className="relative w-48 h-64 mb-10 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-[#2a1b0d] rounded-2xl border-2 border-[#5c4a38] shadow-2xl animate-shuffle-layer-1 overflow-hidden crisp-image" style={{backgroundImage: `url("${CARD_BACK_IMAGE_URL}")`, backgroundSize: 'cover'}}></div>
+                      <div className="absolute inset-0 bg-[#2a1b0d] rounded-2xl border-2 border-[#5c4a38] shadow-2xl animate-shuffle-layer-2 overflow-hidden crisp-image" style={{backgroundImage: `url("${CARD_BACK_IMAGE_URL}")`, backgroundSize: 'cover'}}></div>
+                      <div className="absolute inset-0 bg-[#2a1b0d] rounded-2xl border-2 border-[#5c4a38] shadow-2xl animate-shuffle-layer-3 overflow-hidden crisp-image" style={{backgroundImage: `url("${CARD_BACK_IMAGE_URL}")`, backgroundSize: 'cover'}}></div>
+                      <div className="absolute z-20 text-white font-black text-[10px] tracking-[0.2em] bg-red-800/90 px-3 py-1.5 rounded uppercase border border-red-500/30">Analyzing Samples...</div>
+                    </div>
+                  ) : (
+                    <div className="w-28 h-28 bg-black rounded-full border-4 border-gray-800 flex items-center justify-center shadow-[0_0_50px_rgba(220,38,38,0.25)] mb-10 relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-red-600/10 animate-pulse"></div>
+                      <span className="text-6xl group-hover:scale-110 transition-transform cursor-default text-white">💉</span>
+                    </div>
+                  )}
+                  <button onClick={handleDrawWithAnimation} disabled={stats.left === 0 || isShuffling} className="group relative bg-red-900 hover:bg-red-700 disabled:bg-gray-900 text-white px-10 py-6 rounded-3xl text-2xl font-black tracking-[0.2em] shadow-[0_10px_0_#4a0000] active:shadow-[0_0px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 disabled:border-gray-600 disabled:text-gray-600 flex flex-col items-center uppercase overflow-hidden">
+                    <span className="relative z-10">{isShuffling ? 'In Progress...' : 'Scan Blood'}</span>
                     <span className="relative z-10 text-[10px] font-mono tracking-widest text-red-300 mt-2 opacity-80">(Biometric Identification)</span>
                   </button>
-                  {stats.left === 0 && <p className="text-red-600 mt-6 font-mono font-bold tracking-widest animate-bounce">OUT OF SAMPLES</p>}
                 </div>
               ) : (
-                <div className="flex flex-col items-center w-full max-w-sm mx-auto">
-                  <div className={`perspective-1000 w-full px-6 ${justDrawn ? 'animate-shoot' : ''}`}>
+                <div className="flex flex-col items-center w-full max-w-sm mx-auto relative">
+                  <div className={`perspective-1000 w-full px-6 z-50 ${justDrawn ? 'animate-shoot' : ''}`}>
                     <div 
-                      onClick={() => !isFlipping && setIsFlipping(true)}
-                      className={`relative w-full aspect-[2/3] transform-style-3d transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] ${!isFlipping ? 'cursor-pointer hover:scale-[1.03] hover:-translate-y-2' : ''}
-                        ${isFlipping ? 'rotate-y-180' : ''} 
-                      `}
+                      onClick={handleRevealWithDimming} 
+                      className={`relative w-full aspect-[2/3] transform-style-3d transition-all duration-[2500ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${!isFlipping ? 'cursor-pointer hover:scale-[1.03]' : ''} ${isFlipping ? 'rotate-y-180' : ''}`}
                     >
-                      {/* --- ด้านหลังการ์ด --- */}
-                      <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.9)] border-2 border-[#5c4a38] bg-[#2a1b0d] flex flex-col items-center justify-center p-1 bg-cover bg-center overflow-hidden crisp-image"
-                           style={{ backgroundImage: `url("${CARD_BACK_IMAGE_URL}")` }}>
+                      <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] border-2 border-[#5c4a38] bg-[#2a1b0d] flex flex-col items-center justify-center p-1 bg-cover bg-center overflow-hidden crisp-image" style={{ backgroundImage: `url("${CARD_BACK_IMAGE_URL}")` }}>
                         <div className="w-full h-full border border-white/5 flex flex-col items-center justify-center bg-black/35 backdrop-blur-[1px] rounded-xl p-3 text-center">
-                          <div className="w-16 h-16 bg-black/40 rounded-full flex items-center justify-center mb-3 border border-white/10">
-                            <span className="text-4xl opacity-90 drop-shadow-lg">🩸</span>
-                          </div>
-                          <span className="text-base font-mono text-white font-black tracking-[0.3em] drop-shadow-md">TOP SECRET</span>
-                          <span className="text-[10px] font-mono text-gray-300 mt-1 tracking-widest uppercase opacity-80">Evidence Archive</span>
-                          {!isFlipping && (
-                            <div className="mt-10 flex flex-col items-center gap-2">
-                              <span className="bg-red-600/80 text-white px-5 py-1.5 rounded-full text-[10px] font-bold animate-pulse border border-white/20 shadow-lg tracking-[0.2em] uppercase">
-                                TAP TO REVEAL
-                              </span>
-                            </div>
+                          <div className="w-16 h-16 bg-black/40 rounded-full flex items-center justify-center mb-3 border border-white/10"><span className="text-4xl opacity-90 drop-shadow-lg">🩸</span></div>
+                          <span className="text-base font-mono text-white font-black tracking-[0.3em] drop-shadow-md uppercase">Top Secret</span>
+                          {!isFlipping && !isDimming && (
+                            <span className="mt-10 bg-red-600/80 text-white px-5 py-1.5 rounded-full text-[10px] font-bold animate-pulse border border-white/20 tracking-[0.2em] uppercase text-center">Tap to Reveal</span>
                           )}
                         </div>
                       </div>
-
-                      {/* --- ด้านหน้าการ์ด --- */}
-                      <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_50px_rgba(255,255,255,0.05)] border-4 flex flex-col overflow-hidden crisp-image
-                        ${myCard.color} border-[#0a0a0a] bg-cover bg-center`}
-                           style={{ backgroundImage: `url("${myCard.image}")` }}
-                      >
-                        <div className="bg-white/95 text-black text-[10px] font-mono font-black text-center py-2.5 border-b-4 border-black tracking-[0.4em] z-10 uppercase">
-                          IDENTITY CONFIRMED
-                        </div>
-                        <div className="flex-1 flex flex-col items-end justify-end p-5 text-right bg-gradient-to-t from-black/90 via-black/30 to-transparent z-10">
+                      <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_60px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden crisp-image ${myCard.color} border-[#0a0a0a] bg-cover bg-center`} style={{ backgroundImage: `url("${myCard.image}")` }}>
+                        <div className="bg-white/95 text-black text-[10px] font-mono font-black text-center py-2.5 border-b-4 border-black tracking-[0.4em] z-10 uppercase">Identity Confirmed</div>
+                        <div className="flex-1 flex flex-col items-end justify-end p-5 text-right bg-gradient-to-t from-black/90 via-black/10 to-transparent z-10">
                           <h3 className={`font-black text-3xl z-10 ${myCard.text} drop-shadow-[0_2px_4px_rgba(0,0,0,1)] tracking-wider uppercase`}>{myCard.role}</h3>
-                          <div className="mt-3 text-[10px] font-mono text-white/90 bg-red-900/60 px-4 py-1.5 rounded-sm border border-red-500/30 backdrop-blur-sm tracking-widest">
-                            DNA_ID: #{myCard.drawnBy?.substring(0,8).toUpperCase()}
-                          </div>
+                          <div className="mt-3 text-[10px] font-mono text-white/90 bg-red-900/60 px-4 py-1.5 rounded-sm border border-red-500/30 backdrop-blur-sm tracking-widest uppercase">ID: #{myCard.drawnBy?.substring(0,8)}</div>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {isFlipping && (
-                    <div className={`w-full mt-8 bg-[#f2e5cf] text-gray-900 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.6)] border border-[#d4c5ab] p-6 relative animate-slide-up overflow-hidden`}>
-                      <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-                        <div className="absolute w-32 h-32 rounded-full top-[-10%] right-[-10%]" style={{ background: '#7a0000', mixBlendMode: 'multiply', filter: 'blur(12px)', opacity: 0.45 }}></div>
-                        <div className="absolute top-0 left-[20%] w-2.5 h-12 bg-[#6a0000] rounded-b-full opacity-60 mix-blend-multiply"></div>
-                        <div className="absolute top-10 left-[20.2%] w-2 h-2.5 bg-[#6a0000] rounded-full opacity-60 mix-blend-multiply animate-blood-drop-1"></div>
+                    <div className={`w-full mt-8 bg-[#f2e5cf] text-gray-900 rounded-xl shadow-[0_15px_35px_rgba(0,0,0,0.6)] border border-[#d4c5ab] p-6 relative animate-slide-up overflow-hidden z-50`}>
+                      <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none opacity-60">
+                        <div className="absolute top-0 left-[20%] w-2.5 h-12 bg-[#7a0000] rounded-b-full mix-blend-multiply"></div>
+                        <div className="absolute top-10 left-[20.2%] w-2 h-2.5 bg-[#7a0000] rounded-full mix-blend-multiply animate-blood-drop-1"></div>
                       </div>
                       <div className="relative z-10">
                         <div className="flex items-center gap-3 border-b-2 border-red-900/20 pb-3 mb-5">
-                          <div className="p-2 bg-red-900 rounded-lg text-white">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                          </div>
-                          <h4 className="font-black text-red-950 font-mono tracking-widest uppercase">Investigation File</h4>
+                          <div className="p-2 bg-red-900 rounded-lg text-white shadow-lg"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg></div>
+                          <h4 className="font-black text-red-950 font-mono tracking-widest uppercase text-lg text-center flex-1">Case Dossier</h4>
                         </div>
                         <div className="space-y-5">
-                          <div className="bg-white/30 p-4 rounded-lg border border-white/20">
-                            <span className="block text-[10px] font-black text-red-900 uppercase tracking-[0.2em] mb-2 font-mono">Profile Details</span>
-                            <p className="text-sm leading-relaxed font-serif text-gray-800 italic font-medium">
-                              "{myCard.story}"
-                            </p>
+                          <div className="bg-white/40 p-4 rounded-lg border border-white/20">
+                            <span className="block text-[10px] font-black text-red-900 uppercase tracking-[0.25em] mb-2 font-mono">Confidential Profile</span>
+                            <p className="text-base leading-relaxed font-serif text-gray-800 italic font-medium">"{myCard.story}"</p>
                           </div>
                           <div className="bg-red-900/10 rounded-lg p-4 border border-red-900/20 shadow-inner">
-                            <span className="block text-[10px] font-black text-red-700 uppercase tracking-[0.2em] mb-2 font-mono">Specialized Skill</span>
-                            <p className="text-sm font-bold text-gray-900 leading-snug">
-                              {myCard.skill}
-                            </p>
+                            <span className="block text-[10px] font-black text-red-700 uppercase tracking-[0.25em] mb-2 font-mono">Designated Skill</span>
+                            <p className="text-base font-bold text-gray-900 leading-snug">{myCard.skill}</p>
+                          </div>
+                          <div className="mt-6 pt-4 border-t border-red-900/10 text-center">
+                            {!aiInsight && !isGeneratingAI && !aiError && (
+                              <button onClick={() => fetchAIInsight(myCard.role, myCard.story)} className="w-full bg-red-950 hover:bg-red-900 text-red-100 py-3 rounded-lg border border-red-500/30 flex items-center justify-center gap-2 transition-all group active:scale-95 shadow-md">
+                                <span className="group-hover:animate-spin">✨</span><span className="font-bold text-xs tracking-widest uppercase text-[10px]">วิเคราะห์ประวัติเชิงลึก</span>
+                              </button>
+                            )}
+                            {isGeneratingAI && <div className="flex flex-col items-center gap-2 py-4 animate-pulse"><div className="flex gap-1"><div className="w-2 h-2 bg-red-900 rounded-full animate-bounce"></div><div className="w-2 h-2 bg-red-900 rounded-full animate-bounce [animation-delay:-.3s]"></div><div className="w-2 h-2 bg-red-900 rounded-full animate-bounce [animation-delay:-.5s]"></div></div><span className="text-[10px] font-mono text-red-900 uppercase tracking-widest">กำลังดึงข้อมูลจิตวิทยา...</span></div>}
+                            {aiInsight && <div className="bg-black/5 p-4 rounded border border-red-900/5 mt-2 animate-fadeIn relative text-left"><div className="absolute top-2 right-2 text-red-900/20 text-xl">✨</div><span className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 font-mono">Psychological Evaluation</span><p className="text-sm text-gray-700 font-serif italic leading-relaxed typing-effect">{aiInsight}</p></div>}
+                            {aiError && <p className="text-[10px] text-red-700 text-center font-mono mt-2">{aiError}</p>}
                           </div>
                         </div>
                       </div>
