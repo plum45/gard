@@ -1,390 +1,388 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
-
-// --- 1. การตั้งค่า Firebase (เตรียมพร้อมสำหรับ Vercel / Vite) ---
-// เมื่อคุณนำโค้ดไปรันในโปรเจกต์ Vite (Vercel) ให้เปลี่ยนข้อความ String ด้านล่าง
-// ให้เป็นตัวแปรแบบนี้ครับ -> apiKey: import.meta.env.VITE_FIREBASE_API_KEY
-const firebaseConfig = {
-  apiKey: "AIzaSyALJV_LhnYDU01M7DtFnDQnByscqf_ECD8",
-  authDomain: "fbi52-d8df3.firebaseapp.com",
-  projectId: "fbi52-d8df3",
-  storageBucket: "fbi52-d8df3.firebasestorage.app",
-  messagingSenderId: "945159237123",
-  appId: "1:945159237123:web:1539c68592a057d9c1e836",
-  measurementId: "G-7TNTTKBJ5R"
-};
-
-// ใช้ Config ตัวใหม่ (แต่ยังเผื่อโค้ดไว้ให้รันในหน้า Preview นี้ได้ด้วย)
-const finalConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
-const app = initializeApp(finalConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// ฟังก์ชันช่วยจัดการ Path ฐานข้อมูล (รองรับทั้งระบบพรีวิว และ Vercel)
-const getGameDocRef = () => {
-  if (typeof __app_id !== 'undefined') {
-    return doc(db, 'artifacts', __app_id, 'public', 'data', 'gameState', 'main');
-  }
-  // Path สำหรับฐานข้อมูล Firestore ในโปรเจกต์ของคุณเอง
-  return doc(db, 'cardGameRooms', 'room-01'); 
-};
-
-// --- 2. ข้อมูลตั้งต้นของเกม ---
-const ROLE_TEMPLATES = [
-  { 
-    role: 'ผู้ต้องสงสัย', count: 8, color: 'bg-red-900', text: 'text-red-100', icon: '🔪',
-    skill: 'คำลวงแนบเนียน: เมื่อถูกสอบสวน คุณสามารถโกหกบทบาทตัวเองได้โดยไม่ถูกจับผิดในเทิร์นแรก',
-    story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์... หรือว่าคุณจะเป็นคนทำจริงๆ?'
-  },
-  { 
-    role: 'นักสืบ', count: 5, color: 'bg-blue-900', text: 'text-blue-100', icon: '🕵️‍♂️',
-    skill: 'ตรวจสอบหลักฐาน: ในระหว่างเกม สามารถขอดูแฟ้มประวัติ (การ์ด) ของผู้เล่นอื่นได้ 1 คนแบบลับๆ',
-    story: 'คุณถูกจ้างมาเพื่อไขคดีนี้โดยเฉพาะ หน้าที่ของคุณคือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุกให้ได้'
-  },
-  { 
-    role: 'ผู้เห็นเหตุการณ์', count: 5, color: 'bg-yellow-700', text: 'text-yellow-100', icon: '👁️',
-    skill: 'พยานปากเอก: คุณรู้คำใบ้เกี่ยวกับผู้ต้องสงสัย 1 อย่าง (สุ่มรู้สีเสื้อ หรือ ตำแหน่งที่อยู่)',
-    story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ เพราะกลัวว่าฆาตกรจะมาปิดปากคุณ'
-  },
-  { 
-    role: 'ชาวบ้าน', count: 7, color: 'bg-green-900', text: 'text-green-100', icon: '🧑‍🌾',
-    skill: 'พลังมวลชน: หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้',
-    story: 'คุณเป็นแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดีฆาตกรรมนี้ สิ่งเดียวที่คุณทำได้คือต้องเอาตัวรอดและจับผิดคนให้ถูก'
-  }
-];
-
-const TOTAL_CARDS = 25;
-
-const shuffleArray = (array) => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
-
-const generateDeck = () => {
-  let deck = [];
-  ROLE_TEMPLATES.forEach(template => {
-    for (let i = 0; i < template.count; i++) {
-      deck.push({
-        role: template.role,
-        color: template.color,
-        text: template.text,
-        icon: template.icon,
-        skill: template.skill, 
-        story: template.story,
-        isDrawn: false,
-        drawnBy: null,
-      });
-    }
-  });
-  return shuffleArray(deck).map((card, index) => ({ ...card, id: index }));
-};
-
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [gameState, setGameState] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [hasEntered, setHasEntered] = useState(false); 
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Murder Mystery Card Game</title>
   
-  // สำหรับแอนิเมชันเปิดการ์ดเฉพาะของตัวเอง
-  const [isFlipping, setIsFlipping] = useState(false);
-  const [justDrawn, setJustDrawn] = useState(false);
+  <!-- โหลด Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- โหลด Lottie สำหรับแอนิเมชันหน้าแรก -->
+  <script type="module" src="https://unpkg.com/@lottiefiles/dotlottie-wc@0.9.3/dist/dotlottie-wc.js"></script>
 
-  useEffect(() => {
-    if (!document.querySelector('script[src*="dotlottie-wc"]')) {
-      const script = document.createElement('script');
-      script.src = "https://unpkg.com/@lottiefiles/dotlottie-wc@0.9.3/dist/dotlottie-wc.js";
-      script.type = "module";
-      document.head.appendChild(script);
-    }
-  }, []);
+  <!-- โหลด Babel เพื่อแปลงโค้ด React ในบราวเซอร์ -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-[#2e1c0d] text-white">
+  
+  <!-- จุดที่ React จะนำเกมมาแสดงผล -->
+  <div id="root"></div>
 
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
+  <!-- โค้ดหลักของเกม -->
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useMemo, useRef } from 'https://esm.sh/react@18.2.0';
+    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+    import { getFirestore, doc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+
+    // --- 1. การตั้งค่า Firebase ของคุณ ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyALJV_LhnYDU01M7DtFnDQnByscqf_ECD8",
+      authDomain: "fbi52-d8df3.firebaseapp.com",
+      projectId: "fbi52-d8df3",
+      storageBucket: "fbi52-d8df3.firebasestorage.app",
+      messagingSenderId: "945159237123",
+      appId: "1:945159237123:web:1539c68592a057d9c1e836",
+      measurementId: "G-7TNTTKBJ5R"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // Path สำหรับเก็บข้อมูลเกมใน Firestore
+    const getGameDocRef = () => {
+      return doc(db, 'cardGameRooms', 'room-01'); 
+    };
+
+    // --- 2. ข้อมูลตั้งต้นของเกม ---
+    const ROLE_TEMPLATES = [
+      { 
+        role: 'ผู้ต้องสงสัย', count: 8, color: 'bg-red-900', text: 'text-red-100', icon: '🔪',
+        skill: 'คำลวงแนบเนียน: เมื่อถูกสอบสวน คุณสามารถโกหกบทบาทตัวเองได้โดยไม่ถูกจับผิดในเทิร์นแรก',
+        story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์... หรือว่าคุณจะเป็นคนทำจริงๆ?'
+      },
+      { 
+        role: 'นักสืบ', count: 5, color: 'bg-blue-900', text: 'text-blue-100', icon: '🕵️‍♂️',
+        skill: 'ตรวจสอบหลักฐาน: ในระหว่างเกม สามารถขอดูแฟ้มประวัติ (การ์ด) ของผู้เล่นอื่นได้ 1 คนแบบลับๆ',
+        story: 'คุณถูกจ้างมาเพื่อไขคดีนี้โดยเฉพาะ หน้าที่ของคุณคือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุกให้ได้'
+      },
+      { 
+        role: 'ผู้เห็นเหตุการณ์', count: 5, color: 'bg-yellow-700', text: 'text-yellow-100', icon: '👁️',
+        skill: 'พยานปากเอก: คุณรู้คำใบ้เกี่ยวกับผู้ต้องสงสัย 1 อย่าง (สุ่มรู้สีเสื้อ หรือ ตำแหน่งที่อยู่)',
+        story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ เพราะกลัวว่าฆาตกรจะมาปิดปากคุณ'
+      },
+      { 
+        role: 'ชาวบ้าน', count: 7, color: 'bg-green-900', text: 'text-green-100', icon: '🧑‍🌾',
+        skill: 'พลังมวลชน: หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้',
+        story: 'คุณเป็นแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดีฆาตกรรมนี้ สิ่งเดียวที่คุณทำได้คือต้องเอาตัวรอดและจับผิดคนให้ถูก'
+      }
+    ];
+
+    const TOTAL_CARDS = 25;
+
+    const shuffleArray = (array) => {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+
+    const generateDeck = () => {
+      let deck = [];
+      ROLE_TEMPLATES.forEach(template => {
+        for (let i = 0; i < template.count; i++) {
+          deck.push({
+            role: template.role,
+            color: template.color,
+            text: template.text,
+            icon: template.icon,
+            skill: template.skill, 
+            story: template.story,
+            isDrawn: false,
+            drawnBy: null,
+          });
         }
-      } catch (error) {
-        console.error("Auth Error:", error);
-      }
+      });
+      return shuffleArray(deck).map((card, index) => ({ ...card, id: index }));
     };
-    initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const gameDocRef = getGameDocRef();
-    
-    const unsubscribe = onSnapshot(gameDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setGameState(docSnap.data());
-        setLoading(false);
-      } else {
-        resetGame();
-      }
-    });
-    return () => unsubscribe();
-  }, [user]);
-
-  const resetGame = async () => {
-    if (!user) return;
-    setLoading(true);
-    const newDeck = generateDeck();
-    const gameDocRef = getGameDocRef();
-    await setDoc(gameDocRef, {
-      cards: newDeck,
-      createdAt: new Date().toISOString()
-    });
-    setIsFlipping(false);
-    setJustDrawn(false);
-    setLoading(false);
-  };
-
-  // ดึงไพ่ให้ตัวเอง (สุ่ม 1 ใบ)
-  const drawMyCard = async () => {
-    if (!user || !gameState) return;
-    
-    // เช็คว่าเคยสุ่มไปแล้วหรือยัง (1 คน 1 ใบเท่านั้น)
-    if (gameState.cards.some(c => c.drawnBy === user.uid)) return;
-
-    const availableIndices = gameState.cards
-      .map((c, i) => (!c.isDrawn ? i : null))
-      .filter(i => i !== null);
-    
-    if (availableIndices.length === 0) return;
-    const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
-
-    const updatedCards = [...gameState.cards];
-    updatedCards[randomIndex].isDrawn = true;
-    updatedCards[randomIndex].drawnBy = user.uid;
-
-    setJustDrawn(true); // ทริกเกอร์ให้การ์ดพุ่งออกมา
-    setIsFlipping(false); // คว่ำหน้าไว้ก่อน
-
-    // อัปเดตลง DB
-    const gameDocRef = getGameDocRef();
-    await setDoc(gameDocRef, { ...gameState, cards: updatedCards }, { merge: true });
-  };
-
-  // หาทรัพย์สิน (การ์ด) ของตัวเอง
-  const myCard = useMemo(() => {
-    if (!gameState || !user) return null;
-    return gameState.cards.find(c => c.drawnBy === user.uid);
-  }, [gameState, user]);
-
-  // สถิติส่วนกลาง
-  const stats = useMemo(() => {
-    if (!gameState) return { drawn: 0, left: 25 };
-    const drawnCards = gameState.cards.filter(c => c.isDrawn);
-    return {
-      drawn: drawnCards.length,
-      left: TOTAL_CARDS - drawnCards.length
-    };
-  }, [gameState]);
-
-  if (!hasEntered) {
-    return (
-      <div className="min-h-screen relative font-sans flex flex-col items-center justify-center overflow-hidden"
-           style={{
-             backgroundColor: '#2e1c0d',
-             backgroundImage: `repeating-linear-gradient(90deg, #2e1c0d 0px, #2e1c0d 20px, #261609 20px, #261609 40px)`,
-             boxShadow: 'inset 0 0 150px rgba(0,0,0,0.9)'
-           }}>
-        <div className="absolute w-64 h-64 rounded-full top-[-10%] right-[-10%] pointer-events-none" style={{ background: '#5a0000', mixBlendMode: 'multiply', filter: 'blur(10px)', opacity: 0.85 }}></div>
-        <div className="absolute w-96 h-96 rounded-[40%_60%_70%_30%] bottom-[-20%] left-[-20%] pointer-events-none" style={{ background: '#3a0000', mixBlendMode: 'multiply', filter: 'blur(15px)', opacity: 0.8 }}></div>
-
-        <div className="relative z-10 flex flex-col items-center bg-black/60 p-6 md:p-8 rounded-2xl backdrop-blur-md border border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.8)] text-center max-w-lg w-[95%] mx-auto">
-          <h1 className="text-3xl md:text-5xl font-black text-red-600 mb-2 tracking-widest drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">
-            MURDER MYSTERY
-          </h1>
-          <p className="text-gray-400 mb-2 font-mono text-xs md:text-sm tracking-widest">CLASSIFIED CASE FILE #9942</p>
-          
-          <div className="my-6 bg-black/40 rounded-xl p-4 border border-gray-800 shadow-inner flex justify-center w-full overflow-hidden relative" style={{ height: '300px', maxWidth: '300px' }}>
-            <div style={{ width: '1080px', height: '1080px', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) scale(0.2777)' }}>
-              <dotlottie-wc
-                src="https://lottie.host/e4bd0bbc-dc5c-449b-85ed-beb254f96c43/V1UF1DqfQa.lottie"
-                style={{ width: '100%', height: '100%' }}
-                autoplay
-                loop
-              ></dotlottie-wc>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => setHasEntered(true)}
-            disabled={loading || !gameState}
-            className="mt-2 w-full bg-red-800 hover:bg-red-700 disabled:bg-gray-800 disabled:text-gray-500 text-white px-6 py-4 rounded-lg text-lg md:text-xl font-bold tracking-wider shadow-[0_4px_0_#4a0000] active:shadow-[0_0px_0_#4a0000] active:translate-y-1 transition-all border border-red-900 disabled:border-gray-700"
-          >
-            {loading || !gameState ? '⏳ กำลังเตรียมแฟ้มคดี...' : '🕵️‍♂️ เข้าสู่ห้องสืบสวน'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading || !gameState) return <div className="min-h-screen bg-[#2e1c0d] flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div></div>;
-
-  return (
-    <div className="min-h-screen relative font-sans p-4 md:p-8 overflow-x-hidden flex flex-col items-center" 
-         style={{
-           backgroundColor: '#2e1c0d',
-           backgroundImage: `repeating-linear-gradient(90deg, #2e1c0d 0px, #2e1c0d 20px, #261609 20px, #261609 40px)`,
-           boxShadow: 'inset 0 0 150px rgba(0,0,0,0.9)'
-         }}>
+    function App() {
+      const [user, setUser] = useState(null);
+      const [gameState, setGameState] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [hasEntered, setHasEntered] = useState(false); 
       
-      <style dangerouslySetInnerHTML={{__html: `
-        .perspective-1000 { perspective: 1000px; }
-        .transform-style-3d { transform-style: preserve-3d; }
-        .backface-hidden { backface-visibility: hidden; }
-        .rotate-y-180 { transform: rotateY(180deg); }
+      const [isFlipping, setIsFlipping] = useState(false);
+      const [justDrawn, setJustDrawn] = useState(false);
+
+      useEffect(() => {
+        const initAuth = async () => {
+          try {
+            await signInAnonymously(auth);
+          } catch (error) {
+            console.error("Auth Error:", error);
+          }
+        };
+        initAuth();
+
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+          setUser(currentUser);
+        });
+        return () => unsubscribe();
+      }, []);
+
+      useEffect(() => {
+        if (!user) return;
+        const gameDocRef = getGameDocRef();
         
-        @keyframes shootFromMachine {
-          0% { transform: translateY(-300px) scale(0.2); opacity: 0; }
-          60% { transform: translateY(30px) scale(1.05); opacity: 1; }
-          100% { transform: translateY(0) scale(1); opacity: 1; }
-        }
-        .animate-shoot {
-          animation: shootFromMachine 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
+        const unsubscribe = onSnapshot(gameDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setGameState(docSnap.data());
+            setLoading(false);
+          } else {
+            resetGame();
+          }
+        });
+        return () => unsubscribe();
+      }, [user]);
+
+      const resetGame = async () => {
+        if (!user) return;
+        setLoading(true);
+        const newDeck = generateDeck();
+        const gameDocRef = getGameDocRef();
+        await setDoc(gameDocRef, {
+          cards: newDeck,
+          createdAt: new Date().toISOString()
+        });
+        setIsFlipping(false);
+        setJustDrawn(false);
+        setLoading(false);
+      };
+
+      const drawMyCard = async () => {
+        if (!user || !gameState) return;
         
-        @keyframes slideUpFade {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-slide-up {
-          animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
-          opacity: 0;
-        }
+        if (gameState.cards.some(c => c.drawnBy === user.uid)) return;
 
-        .blood-splatter { position: absolute; background: #5a0000; mix-blend-mode: multiply; filter: blur(4px); opacity: 0.85; pointer-events: none; }
-      `}} />
-
-      <div className="blood-splatter w-48 h-32 rounded-[40%_60%_70%_30%] top-[10%] left-[5%]"></div>
-      <div className="blood-splatter w-24 h-24 rounded-[60%_40%_30%_70%] top-[50%] right-[10%]"></div>
-
-      <div className="max-w-3xl w-full mx-auto space-y-6 relative z-20 flex-1 flex flex-col">
+        const availableIndices = gameState.cards
+          .map((c, i) => (!c.isDrawn ? i : null))
+          .filter(i => i !== null);
         
-        {/* --- ส่วนสรุปผลด้านบน (เห็นทุกคน) --- */}
-        <div className="bg-black/80 backdrop-blur-sm p-4 rounded-xl border-t-4 border-red-900 border-x border-b border-gray-700 shadow-xl">
-          <div className="flex flex-col sm:flex-row justify-between items-center pb-1">
-            <div>
-              <h2 className="text-gray-200 text-lg font-bold flex items-center gap-2">
-                <span className="text-red-500">🩸</span> ข้อมูลผลเลือดรวม
-              </h2>
-              <p className="text-gray-400 text-sm font-mono mt-1">
-                สุ่มไปแล้ว: <span className="text-white">{stats.drawn}</span> | เหลือ: <span className="text-red-400">{stats.left}</span> ใบ
-              </p>
-            </div>
-            <button onClick={resetGame} className="mt-3 sm:mt-0 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 px-4 py-2 rounded shadow text-white transition-colors">
-              🔄 รีเซ็ตคดีใหม่
-            </button>
-          </div>
-        </div>
+        if (availableIndices.length === 0) return;
+        const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
 
-        {/* --- พื้นที่แสดงการ์ดของผู้เล่น --- */}
-        <div className="flex-1 flex flex-col items-center justify-center py-8">
-          
-          {!myCard ? (
-            /* ถ้ายังไม่เคยสุ่ม ให้แสดงเครื่องหรือปุ่มสุ่มใหญ่ๆ */
-            <div className="flex flex-col items-center">
-              <div className="w-24 h-24 bg-black rounded-full border-4 border-gray-700 flex items-center justify-center shadow-[0_0_30px_rgba(255,0,0,0.3)] mb-8">
-                <span className="text-5xl animate-pulse">💉</span>
-              </div>
-              <button 
-                onClick={drawMyCard}
-                disabled={stats.left === 0}
-                className="bg-red-700 hover:bg-red-600 disabled:bg-gray-800 text-white px-8 py-5 rounded-2xl text-xl md:text-2xl font-black tracking-wider shadow-[0_8px_0_#4a0000] active:shadow-[0_0px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 disabled:border-gray-600 disabled:text-gray-500 flex flex-col items-center"
-              >
-                <span>ดึงผลเลือดของคุณ</span>
-                <span className="text-sm font-normal text-red-200 mt-1 bg-black/30 px-3 py-1 rounded-full">(สุ่มได้ 1 ใบ / คน เท่านั้น)</span>
-              </button>
-              {stats.left === 0 && <p className="text-red-500 mt-4 font-bold">ผลเลือดหมดแล้ว!</p>}
-            </div>
-          ) : (
-            /* ถ้าสุ่มแล้ว โชว์การ์ดของตัวเองแบบเดี่ยวๆ */
-            <div className="flex flex-col items-center w-full max-w-sm mx-auto">
-              <div className={`perspective-1000 w-full px-8 ${justDrawn ? 'animate-shoot' : ''}`}>
-                <div 
-                  onClick={() => !isFlipping && setIsFlipping(true)}
-                  className={`relative w-full aspect-[2/3] transform-style-3d transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] ${!isFlipping ? 'cursor-pointer hover:scale-105 hover:-translate-y-2' : ''}
-                    ${isFlipping ? 'rotate-y-180' : ''} 
-                  `}
-                >
-                  {/* ด้านหลังการ์ด (ซองหลักฐาน) */}
-                  <div className="absolute inset-0 w-full h-full backface-hidden rounded-xl shadow-[0_10px_20px_rgba(0,0,0,0.8)] border-2 border-[#8a6b4a] bg-[#b08d6a] flex flex-col items-center justify-center p-3">
-                    <div className="w-full h-full border-2 border-dashed border-[#8a6b4a]/60 flex flex-col items-center justify-center">
-                      <span className="text-4xl opacity-80 mb-2">🩸</span>
-                      <span className="text-sm font-mono text-[#4a3018] font-black tracking-widest">CONFIDENTIAL</span>
-                      <span className="text-xs font-mono text-[#4a3018] mt-1">EVIDENCE FILE</span>
-                      {!isFlipping && (
-                        <span className="mt-6 bg-white/30 text-[#4a3018] px-3 py-1 rounded-full text-xs font-bold animate-pulse border border-[#4a3018]/20 shadow-sm">
-                          👆 แตะเพื่อเปิดดู
-                        </span>
-                      )}
-                    </div>
-                  </div>
+        const updatedCards = [...gameState.cards];
+        updatedCards[randomIndex].isDrawn = true;
+        updatedCards[randomIndex].drawnBy = user.uid;
 
-                  {/* ด้านหน้าการ์ด (ผลตัวละคร) */}
-                  <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden
-                    ${myCard.color} border-gray-900`}
-                  >
-                    <div className="bg-white text-black text-xs font-mono font-black text-center py-2 border-b-4 border-gray-900 tracking-widest">
-                      IDENTITY MATCH
-                    </div>
-                    
-                    <div className="flex-1 flex flex-col items-center justify-center p-4 text-center bg-black/20">
-                      <span className="text-6xl sm:text-7xl mb-4 filter drop-shadow-xl z-10">{myCard.icon}</span>
-                      <h3 className={`font-black text-2xl sm:text-3xl z-10 ${myCard.text} drop-shadow-md`}>{myCard.role}</h3>
-                      <div className="mt-2 text-xs font-mono text-white/50 bg-black/40 px-3 py-1 rounded-full border border-white/10">ID: #{myCard.drawnBy?.substring(0,6).toUpperCase()}</div>
-                    </div>
-                  </div>
+        setJustDrawn(true); 
+        setIsFlipping(false); 
+
+        const gameDocRef = getGameDocRef();
+        await setDoc(gameDocRef, { ...gameState, cards: updatedCards }, { merge: true });
+      };
+
+      const myCard = useMemo(() => {
+        if (!gameState || !user) return null;
+        return gameState.cards.find(c => c.drawnBy === user.uid);
+      }, [gameState, user]);
+
+      const stats = useMemo(() => {
+        if (!gameState) return { drawn: 0, left: 25 };
+        const drawnCards = gameState.cards.filter(c => c.isDrawn);
+        return {
+          drawn: drawnCards.length,
+          left: TOTAL_CARDS - drawnCards.length
+        };
+      }, [gameState]);
+
+      if (!hasEntered) {
+        return (
+          <div className="min-h-screen relative font-sans flex flex-col items-center justify-center overflow-hidden"
+               style={{
+                 backgroundColor: '#2e1c0d',
+                 backgroundImage: `repeating-linear-gradient(90deg, #2e1c0d 0px, #2e1c0d 20px, #261609 20px, #261609 40px)`,
+                 boxShadow: 'inset 0 0 150px rgba(0,0,0,0.9)'
+               }}>
+            <div className="absolute w-64 h-64 rounded-full top-[-10%] right-[-10%] pointer-events-none" style={{ background: '#5a0000', mixBlendMode: 'multiply', filter: 'blur(10px)', opacity: 0.85 }}></div>
+            <div className="absolute w-96 h-96 rounded-[40%_60%_70%_30%] bottom-[-20%] left-[-20%] pointer-events-none" style={{ background: '#3a0000', mixBlendMode: 'multiply', filter: 'blur(15px)', opacity: 0.8 }}></div>
+
+            <div className="relative z-10 flex flex-col items-center bg-black/60 p-6 md:p-8 rounded-2xl backdrop-blur-md border border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.8)] text-center max-w-lg w-[95%] mx-auto">
+              <h1 className="text-3xl md:text-5xl font-black text-red-600 mb-2 tracking-widest drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">
+                MURDER MYSTERY
+              </h1>
+              <p className="text-gray-400 mb-2 font-mono text-xs md:text-sm tracking-widest">CLASSIFIED CASE FILE #9942</p>
+              
+              <div className="my-6 bg-black/40 rounded-xl p-4 border border-gray-800 shadow-inner flex justify-center w-full overflow-hidden relative" style={{ height: '300px', maxWidth: '300px' }}>
+                <div style={{ width: '1080px', height: '1080px', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%) scale(0.2777)' }}>
+                  <dotlottie-wc
+                    src="https://lottie.host/e4bd0bbc-dc5c-449b-85ed-beb254f96c43/V1UF1DqfQa.lottie"
+                    style={{ width: '100%', height: '100%' }}
+                    autoplay
+                    loop
+                  ></dotlottie-wc>
                 </div>
               </div>
+              
+              <button 
+                onClick={() => setHasEntered(true)}
+                disabled={loading || !gameState}
+                className="mt-2 w-full bg-red-800 hover:bg-red-700 disabled:bg-gray-800 disabled:text-gray-500 text-white px-6 py-4 rounded-lg text-lg md:text-xl font-bold tracking-wider shadow-[0_4px_0_#4a0000] active:shadow-[0_0px_0_#4a0000] active:translate-y-1 transition-all border border-red-900 disabled:border-gray-700"
+              >
+                {loading || !gameState ? '⏳ กำลังเตรียมแฟ้มคดี...' : '🕵️‍♂️ เข้าสู่ห้องสืบสวน'}
+              </button>
+            </div>
+          </div>
+        );
+      }
 
-              {/* ข้อมูลแฟ้มประวัติ (เลื่อนขึ้นมาหลังไพ่เปิดเสร็จ) */}
-              {isFlipping && (
-                <div className={`w-full mt-6 bg-[#e8d5b5] text-gray-900 rounded-lg shadow-[5px_5px_15px_rgba(0,0,0,0.8)] border border-[#c4a97f] p-5 relative animate-slide-up`}>
-                  <div className="absolute -top-3 -right-3 text-4xl transform rotate-[15deg] opacity-20">📎</div>
-                  
-                  <h4 className="font-bold text-red-900 border-b-2 border-red-900/30 pb-2 mb-3 font-mono tracking-wider flex items-center gap-2">
-                    <span>📑</span> DOSSIER & ABILITY
-                  </h4>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <span className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Background Story</span>
-                      <p className="text-sm leading-relaxed font-serif text-gray-800 italic">
-                        "{myCard.story}"
-                      </p>
-                    </div>
-                    
-                    <div className="bg-black/5 rounded p-3 border border-black/10">
-                      <span className="block text-xs font-bold text-red-700 uppercase tracking-widest mb-1">Special Skill</span>
-                      <p className="text-sm font-medium text-gray-900">
-                        {myCard.skill}
-                      </p>
+      if (loading || !gameState) return <div className="min-h-screen bg-[#2e1c0d] flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div></div>;
+
+      return (
+        <div className="min-h-screen relative font-sans p-4 md:p-8 overflow-x-hidden flex flex-col items-center" 
+             style={{
+               backgroundColor: '#2e1c0d',
+               backgroundImage: `repeating-linear-gradient(90deg, #2e1c0d 0px, #2e1c0d 20px, #261609 20px, #261609 40px)`,
+               boxShadow: 'inset 0 0 150px rgba(0,0,0,0.9)'
+             }}>
+          
+          <style dangerouslySetInnerHTML={{__html: `
+            .perspective-1000 { perspective: 1000px; }
+            .transform-style-3d { transform-style: preserve-3d; }
+            .backface-hidden { backface-visibility: hidden; }
+            .rotate-y-180 { transform: rotateY(180deg); }
+            
+            @keyframes shootFromMachine {
+              0% { transform: translateY(-300px) scale(0.2); opacity: 0; }
+              60% { transform: translateY(30px) scale(1.05); opacity: 1; }
+              100% { transform: translateY(0) scale(1); opacity: 1; }
+            }
+            .animate-shoot {
+              animation: shootFromMachine 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            }
+            
+            @keyframes slideUpFade {
+              from { opacity: 0; transform: translateY(30px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .animate-slide-up {
+              animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
+              opacity: 0;
+            }
+
+            .blood-splatter { position: absolute; background: #5a0000; mix-blend-mode: multiply; filter: blur(4px); opacity: 0.85; pointer-events: none; }
+          `}} />
+
+          <div className="blood-splatter w-48 h-32 rounded-[40%_60%_70%_30%] top-[10%] left-[5%]"></div>
+          <div className="blood-splatter w-24 h-24 rounded-[60%_40%_30%_70%] top-[50%] right-[10%]"></div>
+
+          <div className="max-w-3xl w-full mx-auto space-y-6 relative z-20 flex-1 flex flex-col">
+            
+            <div className="bg-black/80 backdrop-blur-sm p-4 rounded-xl border-t-4 border-red-900 border-x border-b border-gray-700 shadow-xl">
+              <div className="flex flex-col sm:flex-row justify-between items-center pb-1">
+                <div>
+                  <h2 className="text-gray-200 text-lg font-bold flex items-center gap-2">
+                    <span className="text-red-500">🩸</span> ข้อมูลผลเลือดรวม
+                  </h2>
+                  <p className="text-gray-400 text-sm font-mono mt-1">
+                    สุ่มไปแล้ว: <span className="text-white">{stats.drawn}</span> | เหลือ: <span className="text-red-400">{stats.left}</span> ใบ
+                  </p>
+                </div>
+                <button onClick={resetGame} className="mt-3 sm:mt-0 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 px-4 py-2 rounded shadow text-white transition-colors">
+                  🔄 รีเซ็ตคดีใหม่
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center py-8">
+              
+              {!myCard ? (
+                <div className="flex flex-col items-center">
+                  <div className="w-24 h-24 bg-black rounded-full border-4 border-gray-700 flex items-center justify-center shadow-[0_0_30px_rgba(255,0,0,0.3)] mb-8">
+                    <span className="text-5xl animate-pulse">💉</span>
+                  </div>
+                  <button 
+                    onClick={drawMyCard}
+                    disabled={stats.left === 0}
+                    className="bg-red-700 hover:bg-red-600 disabled:bg-gray-800 text-white px-8 py-5 rounded-2xl text-xl md:text-2xl font-black tracking-wider shadow-[0_8px_0_#4a0000] active:shadow-[0_0px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 disabled:border-gray-600 disabled:text-gray-500 flex flex-col items-center"
+                  >
+                    <span>ดึงผลเลือดของคุณ</span>
+                    <span className="text-sm font-normal text-red-200 mt-1 bg-black/30 px-3 py-1 rounded-full">(สุ่มได้ 1 ใบ / คน เท่านั้น)</span>
+                  </button>
+                  {stats.left === 0 && <p className="text-red-500 mt-4 font-bold">ผลเลือดหมดแล้ว!</p>}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center w-full max-w-sm mx-auto">
+                  <div className={`perspective-1000 w-full px-8 ${justDrawn ? 'animate-shoot' : ''}`}>
+                    <div 
+                      onClick={() => !isFlipping && setIsFlipping(true)}
+                      className={`relative w-full aspect-[2/3] transform-style-3d transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] ${!isFlipping ? 'cursor-pointer hover:scale-105 hover:-translate-y-2' : ''}
+                        ${isFlipping ? 'rotate-y-180' : ''} 
+                      `}
+                    >
+                      <div className="absolute inset-0 w-full h-full backface-hidden rounded-xl shadow-[0_10px_20px_rgba(0,0,0,0.8)] border-2 border-[#8a6b4a] bg-[#b08d6a] flex flex-col items-center justify-center p-3">
+                        <div className="w-full h-full border-2 border-dashed border-[#8a6b4a]/60 flex flex-col items-center justify-center">
+                          <span className="text-4xl opacity-80 mb-2">🩸</span>
+                          <span className="text-sm font-mono text-[#4a3018] font-black tracking-widest">CONFIDENTIAL</span>
+                          <span className="text-xs font-mono text-[#4a3018] mt-1">EVIDENCE FILE</span>
+                          {!isFlipping && (
+                            <span className="mt-6 bg-white/30 text-[#4a3018] px-3 py-1 rounded-full text-xs font-bold animate-pulse border border-[#4a3018]/20 shadow-sm">
+                              👆 แตะเพื่อเปิดดู
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-xl shadow-[0_0_30px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden
+                        ${myCard.color} border-gray-900`}
+                      >
+                        <div className="bg-white text-black text-xs font-mono font-black text-center py-2 border-b-4 border-gray-900 tracking-widest">
+                          IDENTITY MATCH
+                        </div>
+                        
+                        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center bg-black/20">
+                          <span className="text-6xl sm:text-7xl mb-4 filter drop-shadow-xl z-10">{myCard.icon}</span>
+                          <h3 className={`font-black text-2xl sm:text-3xl z-10 ${myCard.text} drop-shadow-md`}>{myCard.role}</h3>
+                          <div className="mt-2 text-xs font-mono text-white/50 bg-black/40 px-3 py-1 rounded-full border border-white/10">ID: #{myCard.drawnBy?.substring(0,6).toUpperCase()}</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  {isFlipping && (
+                    <div className={`w-full mt-6 bg-[#e8d5b5] text-gray-900 rounded-lg shadow-[5px_5px_15px_rgba(0,0,0,0.8)] border border-[#c4a97f] p-5 relative animate-slide-up`}>
+                      <div className="absolute -top-3 -right-3 text-4xl transform rotate-[15deg] opacity-20">📎</div>
+                      
+                      <h4 className="font-bold text-red-900 border-b-2 border-red-900/30 pb-2 mb-3 font-mono tracking-wider flex items-center gap-2">
+                        <span>📑</span> DOSSIER & ABILITY
+                      </h4>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <span className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Background Story</span>
+                          <p className="text-sm leading-relaxed font-serif text-gray-800 italic">
+                            "{myCard.story}"
+                          </p>
+                        </div>
+                        
+                        <div className="bg-black/5 rounded p-3 border border-black/10">
+                          <span className="block text-xs font-bold text-red-700 uppercase tracking-widest mb-1">Special Skill</span>
+                          <p className="text-sm font-medium text-gray-900">
+                            {myCard.skill}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-      </div>
-    </div>
-  );
-}
+          </div>
+        </div>
+      );
+    }
+
+    // จุดสั่งให้ React เริ่มทำงาน
+    const rootElement = document.getElementById('root');
+    const root = createRoot(rootElement);
+    root.render(<App />);
+  </script>
+</body>
+</html>
