@@ -61,7 +61,6 @@
       -ms-overflow-style: none; 
       scrollbar-width: none; 
       overflow-x: hidden; 
-      /* แก้ไข: เปลี่ยนจาก touch-action: none เป็น manipulation เพื่อให้เลื่อนได้ */
       touch-action: manipulation; 
     }
     .crisp-image { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
@@ -107,15 +106,50 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // --- อัปเดต ROLE_TEMPLATES ปรับชาวบ้านเหลือ 2 ผู้ต้องสงสัยปกติเป็น 4 (รวม 20 ใบ) ---
     const ROLE_TEMPLATES = [
-      { role: 'ผู้ต้องสงสัย', count: 8, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'คำลวงแนบเนียน: เมื่อถูกสอบสวน คุณสามารถโกหกบทบาทตัวเองได้โดยไม่ถูกจับผิดหรือสวมรอยไปกับบทบาทอื่นได้', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
-      { role: 'เทคนิคการแพทย์', count: 8, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์สารคัดหลั่ง:ตรวจเลือดได้ ', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
-      { role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100', image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg', skill: 'ตรวจสอบหลักฐาน: ขอดูแฟ้มประวัติของผู้เล่นอื่นได้ 1 คนแบบลับๆ', story: 'คุณถูกจ้างมาไขคดีนี้ หน้าที่คือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุก' },
-      { role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100', image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png', skill: 'พยานปากเอก: รู้คำใบ้เกี่ยวกับผู้ต้องสงสัย 1 อย่าง', story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ' },
-      { role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน: บังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้เมื่อโหวตรวมกัน', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
+      { role: 'ผู้ต้องสงสัย (ปกติ)', count: 4, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/13C0xyqj/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53311.png', skill: 'การพรางตัว (ห้ามเผยตัวตน): ต้องคอยปลอมตัวเป็นบทบาทอื่นๆ หรือทำตัวให้แนบเนียนเป็นคนปกติมากที่สุดเพื่อหลีกเลี่ยงการถูกสงสัย', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
+      { role: 'ผู้ร้ายตัวจริง', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'เลือดต้องสาป (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป A- ต้องปลอมตัวเป็นบทบาทอื่นอย่างสมบูรณ์แบบและห้ามถูกจับได้เด็ดขาด', story: 'คุณคือผู้ลงมือตัวจริง ความเย็นชาในสายเลือดทำให้คุณกล้าทำในสิ่งที่คนอื่นไม่กล้า... และจะไม่ยอมให้ใครลากตัวไปลงโทษ' },
+      { role: 'ผู้สมรู้ร่วมคิด', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/2S8dX1Vt/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53310.png', skill: 'ปั่นประสาท (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป B ทำหน้าที่สร้างความสับสน ปลอมบทบาท และทำตัวให้น่าสงสัยเพื่อดึงความสนใจแทนผู้ร้าย', story: 'คุณไม่ได้ฆ่า แต่ได้รับผลประโยชน์จากความตายครั้งนี้ หน้าที่ของคุณคือการเล่นละครตบตาให้นักสืบหลงทาง' },
+      { role: 'เทคนิคการแพทย์', count: 5, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์ผลเลือด (เผยตัวตนได้): ตรวจเลือดเป้าหมายได้ ข้อจำกัด: ห้ามบอกคำตอบตรงๆ ต้องบอกเป็น "การตกตะกอนของหมู่เลือด" เท่านั้น', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
+      { role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100', image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg', skill: 'สืบหาเบาะแส (ห้ามเผยตัวตน): ตรวจสอบร่องรอยเลือดของผู้ตาย/ผู้ต้องสงสัย ข้อจำกัด: ห้ามแสดงความคิดเห็นกับผู้เล่นอื่น ยกเว้นคุยกับเทคนิคการแพทย์แบบลับๆ', story: 'คุณถูกจ้างมาไขคดีนี้ หน้าที่คือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุก' },
+      { role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100', image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png', skill: 'พยานปากเอก (เผยตัวตนได้): รู้ว่าคนร้ายเลือดกรุ๊ปอะไร ข้อจำกัด: ห้ามพูด ทำได้แค่พยักหน้าเท่านั้น และตอบคำถามจากผู้อื่นได้ 1 คำถามต่อการประชุม 1 ครั้ง', story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ' },
+      { role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน (ห้ามเผยตัวตน): หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
     ];
 
-    const TOTAL_CARDS = 25;
+    const TOTAL_CARDS = 20;
+
+    // แก้ไขข้อผิดพลาด Syntax Error ในส่วนนี้
+    const secureRandom = () => {
+      const array = new Uint32Array(1);
+      window.crypto.getRandomValues(array);
+      return array[0] / (0xFFFFFFFF + 1);
+    };
+
+    const shuffleArray = (array) => {
+      const shuffled = [...array];
+      for (let pass = 0; pass < 3; pass++) {
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(secureRandom() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+      }
+      return shuffled;
+    };
+
+    const generateDeck = () => {
+      let deck = [];
+      const templates = shuffleArray([...ROLE_TEMPLATES]);
+      templates.forEach(template => {
+        for (let i = 0; i < template.count; i++) {
+          deck.push({ ...template, isDrawn: false, drawnBy: null });
+        }
+      });
+      return shuffleArray(deck).map((card, index) => ({ ...card, id: index }));
+    };
+
+    const BACKGROUND_IMAGE_URL = 'https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg';
+    const CARD_BACK_IMAGE_URL = 'https://i.postimg.cc/yNy79y33/creation_2471378801.png'; 
 
     function App() {
       const [user, setUser] = useState(null);
@@ -171,7 +205,6 @@
           const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
           setSpotlightPos({ x: (clientX / window.innerWidth) * 100, y: (clientY / window.innerHeight) * 100 });
         };
-        // แก้ไข: ใช้ passive: true เพื่อให้บราวเซอร์เลื่อนหน้าจอได้ปกติ
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('touchmove', handleMove, { passive: true });
         window.addEventListener('touchstart', handleMove, { passive: true });
@@ -188,7 +221,7 @@
         try {
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: `บทบาท: ${role}\nเรื่องราว: ${story}` }] }], systemInstruction: { parts: [{ text: "วิเคราะห์จิตวิทยาตัวละครสั้นๆ ภาษาไทย" }] } })
+            body: JSON.stringify({ contents: [{ parts: [{ text: `บทบาท: ${role}\nเรื่องราว: ${story}\nช่วยวิเคราะห์จิตวิทยาและวิธีเล่นบทบาทนี้ให้เนียนที่สุดในฐานะผู้คุมเกมสไตล์ Noir` }] }], systemInstruction: { parts: [{ text: "วิเคราะห์จิตวิทยาตัวละครสั้นๆ ภาษาไทย" }] } })
           });
           const result = await response.json();
           setAiInsight(result.candidates?.[0]?.content?.parts?.[0]?.text || "ข้อมูลสูญหาย...");
@@ -304,7 +337,7 @@
                       </div>
                       <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_60px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden crisp-image ${myCard.color} border-[#0a0a0a] bg-cover bg-center`} style={{ backgroundImage: `url("${myCard.image}")` }}>
                         <div className="bg-white/95 text-black text-[10px] font-mono font-black text-center py-2.5 border-b-4 border-black tracking-[0.4em] z-10 uppercase">Identity Confirmed</div>
-                        <div className="flex-1 flex flex-col items-end justify-end p-5 text-right bg-gradient-to-t from-black/90 via-black/10 to-transparent z-10">
+                        <div className="flex-1 flex flex-col items-end justify-end p-5 text-right bg-gradient-to-t from-black/90 via-black/30 to-transparent z-10">
                           <h3 className={`font-black text-3xl z-10 ${myCard.text} drop-shadow-[0_2px_4px_rgba(0,0,0,1)] tracking-wider uppercase`}>{myCard.role}</h3>
                           <div className="mt-3 text-[10px] font-mono text-white/90 bg-red-900/60 px-4 py-1.5 rounded-sm border border-red-500/30 backdrop-blur-sm tracking-widest uppercase">ID: #{myCard.drawnBy?.substring(0,8)}</div>
                         </div>
@@ -360,4 +393,3 @@
   </script>
 </body>
 </html>
-
