@@ -108,8 +108,8 @@
     const db = getFirestore(app);
 
     const ROLE_TEMPLATES = [
-      { role: 'ผู้ต้องสงสัย', count: 8, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'คำลวงแนบเนียน: เมื่อถูกสอบสวน คุณสามารถโกหกบทบาทตัวเองได้โดยไม่ถูกจับผิดในเทิร์นแรก', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
-      { role: 'เทคนิคการแพทย์', count: 8, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์สารคัดหลั่ง: ตรวจสอบว่าผู้เล่นมีการใช้สกิลหรือไม่', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
+      { role: 'ผู้ต้องสงสัย', count: 8, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'คำลวงแนบเนียน: เมื่อถูกสอบสวน คุณสามารถโกหกบทบาทตัวเองได้โดยไม่ถูกจับผิดหรือสวมรอยไปกับบทบาทอื่นได้', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
+      { role: 'เทคนิคการแพทย์', count: 8, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์สารคัดหลั่ง:ตรวจเลือดได้ ', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
       { role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100', image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg', skill: 'ตรวจสอบหลักฐาน: ขอดูแฟ้มประวัติของผู้เล่นอื่นได้ 1 คนแบบลับๆ', story: 'คุณถูกจ้างมาไขคดีนี้ หน้าที่คือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุก' },
       { role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100', image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png', skill: 'พยานปากเอก: รู้คำใบ้เกี่ยวกับผู้ต้องสงสัย 1 อย่าง', story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ' },
       { role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน: บังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้เมื่อโหวตรวมกัน', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
@@ -360,3 +360,4 @@
   </script>
 </body>
 </html>
+
