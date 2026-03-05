@@ -84,7 +84,8 @@
     import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-    import { getFirestore, doc, setDoc, onSnapshot, collection } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    // เพิ่ม runTransaction เพื่อเข้าคิวการดึงข้อมูลและป้องกันบั๊กเมื่อคนกดพร้อมกัน
+    import { getFirestore, doc, setDoc, onSnapshot, collection, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
     const apiKey = ""; 
     const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
@@ -106,20 +107,18 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // --- อัปเดต ROLE_TEMPLATES ปรับชาวบ้านเหลือ 2 ผู้ต้องสงสัยปกติเป็น 4 (รวม 20 ใบ) ---
     const ROLE_TEMPLATES = [
       { role: 'ผู้ต้องสงสัย (ปกติ)', count: 4, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/13C0xyqj/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53311.png', skill: 'การพรางตัว (ห้ามเผยตัวตน): ต้องคอยปลอมตัวเป็นบทบาทอื่นๆ หรือทำตัวให้แนบเนียนเป็นคนปกติมากที่สุดเพื่อหลีกเลี่ยงการถูกสงสัย', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
-      { role: 'ผู้ร้ายตัวจริง', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'เลือดต้องสาป (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป AฺB+ ต้องปลอมตัวเป็นบทบาทอื่นอย่างสมบูรณ์แบบและห้ามถูกจับได้เด็ดขาด', story: 'คุณคือผู้ลงมือตัวจริง ความเย็นชาในสายเลือดทำให้คุณกล้าทำในสิ่งที่คนอื่นไม่กล้า... และจะไม่ยอมให้ใครลากตัวไปลงโทษ' },
-      { role: 'ผู้สมรู้ร่วมคิด', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/2S8dX1Vt/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53310.png', skill: 'ปั่นประสาท (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป A+ ทำหน้าที่สร้างความสับสน ปลอมบทบาท และทำตัวให้น่าสงสัยเพื่อดึงความสนใจแทนผู้ร้าย', story: 'คุณไม่ได้ฆ่า แต่ได้รับผลประโยชน์จากความตายครั้งนี้ หน้าที่ของคุณคือการเล่นละครตบตาให้นักสืบหลงทาง' },
+      { role: 'ผู้ร้ายตัวจริง', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'เลือดต้องสาป (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป A- ต้องปลอมตัวเป็นบทบาทอื่นอย่างสมบูรณ์แบบและห้ามถูกจับได้เด็ดขาด', story: 'คุณคือผู้ลงมือตัวจริง ความเย็นชาในสายเลือดทำให้คุณกล้าทำในสิ่งที่คนอื่นไม่กล้า... และจะไม่ยอมให้ใครลากตัวไปลงโทษ' },
+      { role: 'ผู้สมรู้ร่วมคิด', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/2S8dX1Vt/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53310.png', skill: 'ปั่นประสาท (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป B ทำหน้าที่สร้างความสับสน ปลอมบทบาท และทำตัวให้น่าสงสัยเพื่อดึงความสนใจแทนผู้ร้าย', story: 'คุณไม่ได้ฆ่า แต่ได้รับผลประโยชน์จากความตายครั้งนี้ หน้าที่ของคุณคือการเล่นละครตบตาให้นักสืบหลงทาง' },
       { role: 'เทคนิคการแพทย์', count: 5, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์ผลเลือด (เผยตัวตนได้): ตรวจเลือดเป้าหมายได้ ข้อจำกัด: ห้ามบอกคำตอบตรงๆ ต้องบอกเป็น "การตกตะกอนของหมู่เลือด" เท่านั้น', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
       { role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100', image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg', skill: 'สืบหาเบาะแส (ห้ามเผยตัวตน): ตรวจสอบร่องรอยเลือดของผู้ตาย/ผู้ต้องสงสัย ข้อจำกัด: ห้ามแสดงความคิดเห็นกับผู้เล่นอื่น ยกเว้นคุยกับเทคนิคการแพทย์แบบลับๆ', story: 'คุณถูกจ้างมาไขคดีนี้ หน้าที่คือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุก' },
-      { role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100', image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png', skill: 'พยานปากเอก (เผยตัวตนได้): รู้ว่าคนร้ายเลือดกรุ๊ปอะไร ข้อจำกัด: ห้ามพูด ทำได้แค่พยักหน้าเท่านั้น และตอบคำถามจากผู้อื่นได้ 1 คำถามต่อการประชุม 1 ครั้ง (ตอบเป็นการพยักหน้า ใช่หรือไม่)', story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ' },
+      { role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100', image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png', skill: 'พยานปากเอก (เผยตัวตนได้): รู้ว่าคนร้ายเลือดกรุ๊ปอะไร ข้อจำกัด: ห้ามพูด ทำได้แค่พยักหน้าเท่านั้น และตอบคำถามจากผู้อื่นได้ 1 คำถามต่อการประชุม 1 ครั้ง', story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ' },
       { role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน (ห้ามเผยตัวตน): หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
     ];
 
     const TOTAL_CARDS = 20;
 
-    // แก้ไขข้อผิดพลาด Syntax Error ในส่วนนี้
     const secureRandom = () => {
       const array = new Uint32Array(1);
       window.crypto.getRandomValues(array);
@@ -157,14 +156,31 @@
       const [loading, setLoading] = useState(true);
       const [introStage, setIntroStage] = useState('arrival'); 
       const [hasEntered, setHasEntered] = useState(false); 
+      
       const [isShuffling, setIsShuffling] = useState(false);
       const [isFlipping, setIsFlipping] = useState(false);
       const [isDimming, setIsDimming] = useState(false); 
       const [justDrawn, setJustDrawn] = useState(false);
       const [spotlightPos, setSpotlightPos] = useState({ x: 50, y: 50 });
+      
       const [aiInsight, setAiInsight] = useState("");
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
       const [aiError, setAiError] = useState("");
+
+      const myCard = useMemo(() => gameState?.cards.find(c => c.drawnBy === user?.uid), [gameState, user]);
+      const stats = useMemo(() => ({ drawn: gameState?.cards.filter(c => c.isDrawn).length || 0, left: TOTAL_CARDS - (gameState?.cards.filter(c => c.isDrawn).length || 0) }), [gameState]);
+
+      // ล้างสถานะอนิเมชันทันที หากโดนรีเซ็ตการ์ด (ป้องกันจอมืด/เด้งค้าง)
+      useEffect(() => {
+        if (!myCard) {
+          setIsFlipping(false);
+          setIsDimming(false);
+          setJustDrawn(false);
+          setAiInsight("");
+          setAiError("");
+          setIsGeneratingAI(false);
+        }
+      }, [myCard]);
 
       useEffect(() => {
         const initAuth = async () => {
@@ -232,26 +248,48 @@
       const resetGame = async () => {
         if (!user) return;
         setLoading(true);
-        const deck = ROLE_TEMPLATES.flatMap(t => Array(t.count).fill(0).map(() => ({...t, isDrawn: false, drawnBy: null})));
-        for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01'), { cards: deck.map((c, i) => ({...c, id: i})), createdAt: new Date().toISOString() });
-        setIsFlipping(false); setIsDimming(false); setJustDrawn(false); setAiInsight(""); setLoading(false);
+        const deck = generateDeck();
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01'), { cards: deck, createdAt: new Date().toISOString() });
+        setLoading(false);
       };
 
+      // แก้ไข: ใช้ Transaction เพื่อป้องกันข้อมูลชนกันเวลาหลายคนกดจั่วพร้อมกัน
       const handleDrawWithAnimation = async () => {
-        if (!user || !gameState || isShuffling) return;
+        if (!user || isShuffling) return;
         setIsShuffling(true);
+        
         setTimeout(async () => {
-          const idx = gameState.cards.findIndex(c => !c.isDrawn);
-          if (idx === -1) { setIsShuffling(false); return; }
-          const updated = [...gameState.cards]; updated[idx].isDrawn = true; updated[idx].drawnBy = user.uid;
-          setJustDrawn(true); setIsShuffling(false);
-          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01'), { ...gameState, cards: updated }, { merge: true });
+          try {
+            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+            
+            // Transaction จะล็อกข้อมูลและจัดคิวให้คนกดพร้อมกันได้ทีละคน (Atomic Update)
+            await runTransaction(db, async (transaction) => {
+              const docSnap = await transaction.get(gameDocRef);
+              if (!docSnap.exists()) throw "ไม่มีห้องเล่นเกมนี้อยู่";
+              
+              const currentData = docSnap.data();
+              
+              // ตรวจสอบเพื่อป้องกันการกดย้ำหรือถ้าเรามีการ์ดอยู่แล้ว
+              if (currentData.cards.find(c => c.drawnBy === user.uid)) return;
+
+              const idx = currentData.cards.findIndex(c => !c.isDrawn);
+              if (idx === -1) throw "การ์ดหมดแล้ว!";
+
+              const updatedCards = [...currentData.cards];
+              updatedCards[idx].isDrawn = true;
+              updatedCards[idx].drawnBy = user.uid;
+
+              transaction.update(gameDocRef, { cards: updatedCards });
+            });
+
+            setJustDrawn(true);
+          } catch (error) {
+            console.error("ข้อผิดพลาดในการดึงการ์ด:", error);
+          } finally {
+            setIsShuffling(false);
+          }
         }, 2500);
       };
-
-      const myCard = useMemo(() => gameState?.cards.find(c => c.drawnBy === user?.uid), [gameState, user]);
-      const stats = useMemo(() => ({ drawn: gameState?.cards.filter(c => c.isDrawn).length || 0, left: TOTAL_CARDS - (gameState?.cards.filter(c => c.isDrawn).length || 0) }), [gameState]);
 
       if (!hasEntered) {
         return (
@@ -393,5 +431,3 @@
   </script>
 </body>
 </html>
-
-
