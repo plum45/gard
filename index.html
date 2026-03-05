@@ -520,7 +520,7 @@
     import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, runTransaction, updateDoc, deleteField } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
     const apiKey = "";
     const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
@@ -669,26 +669,51 @@
       const [aiInsight, setAiInsight] = useState("");
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
       const [aiError, setAiError] = useState("");
-      const [appError, setAppError] = useState(null);
 
-      // ===== Toast state =====
+      // ===== NEW: ชื่อผู้เล่น, คู่มือ, โหวต, Timer =====
+      const [playerName, setPlayerName] = useState('');
+      const [nameSubmitted, setNameSubmitted] = useState(false);
+      const [showGuide, setShowGuide] = useState(false);
+      const [timerLeft, setTimerLeft] = useState(0);
+      const [showVotePanel, setShowVotePanel] = useState(false);
+      const [myVote, setMyVote] = useState(null);
+
       const [toast, setToast] = useState(null);
       const showToast = useCallback((message, type = 'error') => {
         setToast({ message, type, key: Date.now() });
       }, []);
 
-      // ===== Ref lock เพื่อป้องกันการกดซ้ำ/ข้อมูลชนกัน =====
       const drawLockRef = useRef(false);
       const resetLockRef = useRef(false);
       const shuffleTimerRef = useRef(null);
-      const gameStateRef = useRef(null); // เก็บ state ล่าสุดเพื่อเปรียบเทียบก่อน update
+      const gameStateRef = useRef(null);
+      const timerIntervalRef = useRef(null);
 
       const myCard = useMemo(() => gameState?.cards?.find(c => c.drawnBy === user?.uid), [gameState, user]);
+      const isHost = useMemo(() => gameState?.hostUid === user?.uid, [gameState, user]);
+      const players = useMemo(() => gameState?.players || {}, [gameState]);
+      const playerCount = useMemo(() => Object.keys(players).length, [players]);
+      const votes = useMemo(() => gameState?.votes || {}, [gameState]);
+      const voteCount = useMemo(() => Object.keys(votes).length, [votes]);
       const stats = useMemo(() => {
         if (!gameState?.cards) return { drawn: 0, left: TOTAL_CARDS };
         const drawnCount = gameState.cards.filter(c => c.isDrawn).length;
         return { drawn: drawnCount, left: TOTAL_CARDS - drawnCount };
       }, [gameState]);
+
+      // ===== Timer countdown sync =====
+      useEffect(() => {
+        if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        if (!gameState?.timer?.endTime || !gameState?.timer?.isRunning) { setTimerLeft(0); return; }
+        const tick = () => {
+          const left = Math.max(0, Math.floor((gameState.timer.endTime - Date.now()) / 1000));
+          setTimerLeft(left);
+          if (left <= 0 && timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+        };
+        tick();
+        timerIntervalRef.current = setInterval(tick, 1000);
+        return () => { if (timerIntervalRef.current) clearInterval(timerIntervalRef.current); };
+      }, [gameState?.timer]);
 
       // ล้างสถานะอนิเมชันทันที หากโดนรีเซ็ตการ์ด (ป้องกันจอมืด/เด้งค้าง)
       useEffect(() => {
@@ -811,31 +836,85 @@
         finally { setIsGeneratingAI(false); }
       };
 
-      // ===== initRoom: สร้างห้องใหม่เฉพาะเมื่อไม่มี (ป้องกัน race condition) =====
+      // ===== ลงทะเบียนผู้เล่น =====
+      const registerPlayer = useCallback(async (name) => {
+        if (!user || !name.trim()) return;
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          await updateDoc(gameDocRef, {
+            [`players.${user.uid}`]: { name: name.trim(), joinedAt: Date.now() }
+          });
+          setNameSubmitted(true);
+        } catch (e) { console.error('Register error:', e); showToast('ลงทะเบียนไม่สำเร็จ', 'error'); }
+      }, [user, showToast]);
+
+      // ===== Host: เริ่ม/หยุด Timer =====
+      const toggleTimer = useCallback(async (durationMinutes = 5) => {
+        if (!user || !isHost) return;
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          if (gameState?.timer?.isRunning) {
+            await updateDoc(gameDocRef, { timer: { isRunning: false, endTime: 0 } });
+          } else {
+            await updateDoc(gameDocRef, { timer: { isRunning: true, endTime: Date.now() + durationMinutes * 60000, duration: durationMinutes } });
+          }
+        } catch (e) { console.error('Timer error:', e); }
+      }, [user, isHost, gameState]);
+
+      // ===== โหวต =====
+      const submitVote = useCallback(async (targetName) => {
+        if (!user || !targetName) return;
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          await updateDoc(gameDocRef, { [`votes.${user.uid}`]: targetName });
+          setMyVote(targetName);
+          showToast(`โหวต "${targetName}" เรียบร้อย`, 'success');
+        } catch (e) { console.error('Vote error:', e); }
+      }, [user, showToast]);
+
+      // ===== Host: ล้างโหวต =====
+      const clearVotes = useCallback(async () => {
+        if (!user || !isHost) return;
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          await updateDoc(gameDocRef, { votes: {} });
+          setMyVote(null);
+        } catch (e) { console.error('Clear votes error:', e); }
+      }, [user, isHost]);
+
+      // ===== คืนไพ่ =====
+      const returnCard = useCallback(async () => {
+        if (!user || !myCard) return;
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          await runTransaction(db, async (transaction) => {
+            const snap = await transaction.get(gameDocRef);
+            if (!snap.exists()) return;
+            const data = snap.data();
+            const updatedCards = data.cards.map(c => c.drawnBy === user.uid ? { ...c, isDrawn: false, drawnBy: null } : { ...c });
+            transaction.update(gameDocRef, { cards: updatedCards });
+          });
+          showToast('คืนไพ่เรียบร้อยแล้ว', 'success');
+        } catch (e) { console.error('Return card error:', e); }
+      }, [user, myCard, showToast]);
+
+      // ===== initRoom =====
       const initRoom = useCallback(async () => {
         if (!user) return;
         try {
           const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
-          // ตรวจสอบอีกครั้งว่ายังไม่มีจริงก่อนสร้าง
           const checkSnap = await getDoc(gameDocRef);
-          if (checkSnap.exists()) {
-            setLoading(false);
-            return; // มีคนสร้างไปแล้ว ไม่ต้องทำอะไร
-          }
+          if (checkSnap.exists()) { setLoading(false); return; }
           const deck = generateDeck();
           await setDoc(gameDocRef, {
-            cards: deck,
-            createdAt: new Date().toISOString(),
-            version: Date.now()
+            cards: deck, createdAt: new Date().toISOString(), version: Date.now(),
+            hostUid: user.uid, players: {}, votes: {}, timer: { isRunning: false, endTime: 0 }
           });
-        } catch (error) {
-          console.error("Init room error:", error);
-        } finally {
-          setLoading(false);
-        }
+        } catch (error) { console.error('Init room error:', error); }
+        finally { setLoading(false); }
       }, [user]);
 
-      // ===== resetGame: สำหรับปุ่ม Reset เท่านั้น =====
+      // ===== resetGame =====
       const resetGame = useCallback(async () => {
         if (!user) return;
         if (resetLockRef.current) return;
@@ -944,6 +1023,7 @@
         }
       }, [user, myCard, showToast]);
 
+      // ===== หน้า Intro =====
       if (!hasEntered) {
         return (
           <div className="min-h-screen relative flex flex-col items-center justify-center overflow-hidden bg-black">
@@ -981,6 +1061,29 @@
         );
       }
 
+      // ===== หน้าตั้งชื่อผู้เล่น =====
+      if (!nameSubmitted) {
+        return (
+          <div className="min-h-screen relative flex flex-col items-center justify-center bg-black p-4">
+            <BloodDrips count={3} />
+            <FogOverlay />
+            <div className="relative z-20 bg-black/90 border border-red-900/50 rounded-2xl p-8 max-w-md w-full animate-slide-up-in shadow-[0_0_60px_rgba(220,38,38,0.15)]">
+              <h2 className="text-2xl font-black text-red-600 text-center mb-2 tracking-widest uppercase">🩸 Agent Registration</h2>
+              <p className="text-gray-500 text-center text-xs font-mono mb-8 tracking-widest">IDENTITY VERIFICATION REQUIRED</p>
+              <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value)} onKeyDown={e => e.key === 'Enter' && playerName.trim() && registerPlayer(playerName)}
+                placeholder="ใส่ชื่อ / ฉายา ของคุณ" maxLength={20}
+                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 text-white text-center text-lg font-bold tracking-wider placeholder-gray-600 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all" />
+              <button onClick={() => registerPlayer(playerName)} disabled={!playerName.trim()}
+                className="w-full mt-5 bg-red-900 hover:bg-red-700 disabled:bg-gray-800 disabled:opacity-50 text-white py-4 rounded-xl font-black tracking-[0.3em] uppercase transition-all glow-pulse">
+                Confirm Identity
+              </button>
+              <p className="text-gray-600 text-center text-[10px] font-mono mt-4 tracking-widest">AGENTS ONLINE: {playerCount}</p>
+            </div>
+            {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+          </div>
+        );
+      }
+
       return (
         <div className="min-h-screen relative font-sans p-4 md:p-8 flex flex-col items-center"
           style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', backgroundAttachment: 'fixed' }}>
@@ -991,15 +1094,80 @@
 
           {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-          <div className="max-w-3xl w-full mx-auto space-y-6 relative z-20 flex-1 flex flex-col pb-20">
-            <div className={`bg-black/85 p-5 rounded-2xl border-t-4 border-red-900 shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-opacity duration-1000 ${isDimming ? 'opacity-30' : 'opacity-100'}`}>
-              <div className="flex flex-col sm:flex-row justify-between items-center">
-                <div className="text-center sm:text-left">
-                  <h2 className="text-gray-100 text-xl font-black tracking-widest flex items-center gap-3"><span className="text-red-600 animate-pulse">🩸</span> CASE STATUS</h2>
-                  <p className="text-gray-400 text-sm font-mono mt-1 uppercase">Processed: {stats.drawn} | Remaining: {stats.left}</p>
-                </div>
-                <button onClick={resetGame} disabled={resetLockRef.current} className="mt-4 sm:mt-0 text-xs font-bold tracking-widest bg-gray-900 hover:bg-red-950 border border-gray-700 px-5 py-2.5 rounded-full uppercase disabled:opacity-50 disabled:cursor-not-allowed">Reset Archive</button>
+          {/* ===== คู่มือบทบาท Modal ===== */}
+          {showGuide && (
+            <div className="fixed inset-0 z-[150] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowGuide(false)}>
+              <div className="bg-[#0a0a0a] border border-red-900/30 rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+                <h3 className="text-xl font-black text-red-600 tracking-widest text-center mb-4 uppercase">📋 Role Guide</h3>
+                {ROLE_TEMPLATES.map((r, i) => (
+                  <div key={i} className={`${r.color} rounded-xl p-4 mb-3 border border-white/5`}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className={`font-black text-sm ${r.text}`}>{r.role}</span>
+                      <span className="text-[10px] text-gray-400 font-mono">x{r.count}</span>
+                    </div>
+                    <p className="text-xs text-gray-300 leading-relaxed">{r.skill}</p>
+                  </div>
+                ))}
+                <button onClick={() => setShowGuide(false)} className="w-full mt-4 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-bold tracking-widest uppercase text-sm">Close</button>
               </div>
+            </div>
+          )}
+
+          {/* ===== โหวต Panel ===== */}
+          {showVotePanel && (
+            <div className="fixed inset-0 z-[150] bg-black/80 flex items-center justify-center p-4" onClick={() => setShowVotePanel(false)}>
+              <div className="bg-[#0a0a0a] border border-red-900/30 rounded-2xl max-w-md w-full max-h-[80vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+                <h3 className="text-xl font-black text-red-600 tracking-widest text-center mb-2 uppercase">🗳️ Vote</h3>
+                <p className="text-gray-500 text-center text-xs font-mono mb-5">VOTES: {voteCount} / {playerCount}</p>
+                {Object.entries(players).filter(([uid]) => uid !== user?.uid).map(([uid, p]) => (
+                  <button key={uid} onClick={() => { submitVote(p.name); setShowVotePanel(false); }}
+                    className={`w-full mb-2 py-3 px-5 rounded-xl border text-left font-bold transition-all ${myVote === p.name ? 'bg-red-900 border-red-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-red-600'}`}>
+                    <span className="text-sm">🔍 {p.name}</span>
+                  </button>
+                ))}
+                {isHost && <button onClick={() => { clearVotes(); setShowVotePanel(false); }} className="w-full mt-3 bg-amber-900/50 hover:bg-amber-800 text-amber-200 py-2 rounded-xl text-xs font-bold tracking-widest uppercase">🔄 Reset Votes (Host)</button>}
+                <button onClick={() => setShowVotePanel(false)} className="w-full mt-2 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-bold tracking-widest uppercase text-sm">Close</button>
+              </div>
+            </div>
+          )}
+
+          <div className="max-w-3xl w-full mx-auto space-y-4 relative z-20 flex-1 flex flex-col pb-20">
+            {/* ===== CASE STATUS + Player Count + Timer ===== */}
+            <div className={`bg-black/85 p-5 rounded-2xl border-t-4 border-red-900 shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-opacity duration-1000 ${isDimming ? 'opacity-30' : 'opacity-100'}`}>
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div className="text-center sm:text-left">
+                  <h2 className="text-gray-100 text-lg font-black tracking-widest flex items-center gap-2"><span className="text-red-600 animate-pulse">🩸</span> CASE STATUS</h2>
+                  <p className="text-gray-400 text-xs font-mono mt-1 uppercase">Cards: {stats.drawn}/{TOTAL_CARDS} | 👥 Agents: {playerCount} {isHost && <span className="text-amber-400">| ⭐ HOST</span>}</p>
+                </div>
+                <div className="flex gap-2 flex-wrap justify-center">
+                  <button onClick={() => setShowGuide(true)} className="text-[10px] font-bold tracking-widest bg-blue-950 hover:bg-blue-900 border border-blue-800 px-3 py-2 rounded-full uppercase">📋 Guide</button>
+                  <button onClick={() => setShowVotePanel(true)} className="text-[10px] font-bold tracking-widest bg-purple-950 hover:bg-purple-900 border border-purple-800 px-3 py-2 rounded-full uppercase">🗳️ Vote {voteCount > 0 && `(${voteCount})`}</button>
+                  {myCard && <button onClick={returnCard} className="text-[10px] font-bold tracking-widest bg-gray-800 hover:bg-gray-700 border border-gray-600 px-3 py-2 rounded-full uppercase">↩️ Return</button>}
+                  {isHost && <button onClick={resetGame} className="text-[10px] font-bold tracking-widest bg-red-950 hover:bg-red-900 border border-red-800 px-3 py-2 rounded-full uppercase">🔄 Reset</button>}
+                </div>
+              </div>
+              {/* Timer bar */}
+              {timerLeft > 0 && (
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest">⏱️ Meeting Timer</span>
+                    <span className={`text-lg font-black font-mono ${timerLeft <= 30 ? 'text-red-500 animate-pulse' : 'text-white'}`}>{Math.floor(timerLeft / 60)}:{String(timerLeft % 60).padStart(2, '0')}</span>
+                  </div>
+                  <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                    <div className="bg-red-600 h-full rounded-full transition-all duration-1000" style={{ width: `${(timerLeft / ((gameState?.timer?.duration || 5) * 60)) * 100}%` }}></div>
+                  </div>
+                </div>
+              )}
+              {/* Host Timer Controls */}
+              {isHost && (
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {[3, 5, 10].map(m => (
+                    <button key={m} onClick={() => toggleTimer(m)} className="text-[10px] font-mono bg-gray-800 hover:bg-gray-700 border border-gray-600 px-3 py-1.5 rounded-lg text-gray-300">
+                      {gameState?.timer?.isRunning ? '⏹️ Stop' : `⏱️ ${m}min`}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center py-6">
@@ -1095,5 +1263,3 @@
 </body>
 
 </html>
-
-
