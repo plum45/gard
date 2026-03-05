@@ -543,13 +543,13 @@
     const db = getFirestore(app);
 
     const ROLE_TEMPLATES = [
-      { role: 'ผู้ต้องสงสัย (ปกติ)', count: 3, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/13C0xyqj/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53311.png', skill: 'การพรางตัว (ห้ามเผยตัวตน): ต้องคอยปลอมตัวเป็นบทบาทอื่นๆ หรือทำตัวให้น่าสนใจมากที่สุด', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
+      { role: 'ผู้ต้องสงสัย (ปกติ)', count: 4, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/13C0xyqj/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53311.png', skill: 'การพรางตัว (ห้ามเผยตัวตน): ต้องคอยปลอมตัวเป็นบทบาทอื่นๆ หรือทำตัวให้แนบเนียนเป็นคนปกติมากที่สุดเพื่อหลีกเลี่ยงการถูกสงสัย', story: 'คุณอยู่ในที่เกิดเหตุและมีแรงจูงใจที่จะฆ่าผู้ตาย แต่คุณยังปากแข็งว่าตัวเองบริสุทธิ์...' },
       { role: 'ผู้ร้ายตัวจริง', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/rpNqWNR1/creation_2471383431.png', skill: 'เลือดต้องสาป (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป A- ต้องปลอมตัวเป็นบทบาทอื่นอย่างสมบูรณ์แบบและห้ามถูกจับได้เด็ดขาด', story: 'คุณคือผู้ลงมือตัวจริง ความเย็นชาในสายเลือดทำให้คุณกล้าทำในสิ่งที่คนอื่นไม่กล้า... และจะไม่ยอมให้ใครลากตัวไปลงโทษ' },
-      { role: 'ผู้สมรู้ร่วมคิด', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/2S8dX1Vt/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53310.png', skill: 'ปั่นประสาท (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป B ทำหน้าที่สร้างความสับสน สามารถสั่งใบ้ใครก็ 1 คนในการประชุม 1 ครั้ง', story: 'คุณไม่ได้ฆ่า แต่ได้รับผลประโยชน์จากความตายครั้งนี้ หน้าที่ของคุณคือการเล่นละครตบตาให้นักสืบหลงทาง' },
-      { role: 'เทคนิคการแพทย์', count: 5, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์ผลเลือด (เผยตัวตนได้): ตรวจเลือดเป้าหมายได้โดยในการประชุมหนึ่งครั้งสามารถ ตรวจผลเลือดของคนที่สงสัยได้',  ข้อจำกัด: 'สามารถให้ได้เพียง 1และ1 คนเท่านั้นต่อการประชุม เท่านั้น', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
-      { role: 'นักสืบ', count: 3, color: 'bg-blue-950', text: 'text-blue-100', image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg', skill: 'สืบหาเบาะแส (ห้ามเผยตัวตน): ตรวจสอบร่องรอยเลือดของผู้ตาย/ผู้ต้องสงสัย เสริม สามรารถสอบถามรูปพรรณของผู้ร้ายกับ ผู้ดำเนินเกมได้ 1 ครั้ง ต่อการประชุม ข้อจำกัด: ไม่สามาถถามได้พร้อมกัน 3 คน นักสืบต้องปรปึกษากันว่าใครจะเป็นคนถาม', story: 'คุณถูกจ้างมาไขคดีนี้ หน้าที่คือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุก' },
+      { role: 'ผู้สมรู้ร่วมคิด', count: 1, color: 'bg-red-950', text: 'text-red-100', image: 'https://i.postimg.cc/2S8dX1Vt/freepik_the_style_is_rich_with_textured_brushstrokes_deep_53310.png', skill: 'ปั่นประสาท (ห้ามเผยตัวตน): เลือดของคุณคือกรุ๊ป B ทำหน้าที่สร้างความสับสน ปลอมบทบาท และทำตัวให้น่าสงสัยเพื่อดึงความสนใจแทนผู้ร้าย', story: 'คุณไม่ได้ฆ่า แต่ได้รับผลประโยชน์จากความตายครั้งนี้ หน้าที่ของคุณคือการเล่นละครตบตาให้นักสืบหลงทาง' },
+      { role: 'เทคนิคการแพทย์', count: 5, color: 'bg-cyan-950', text: 'text-cyan-100', image: 'https://i.postimg.cc/vHwXJfZt/freepik-the-style_is_rich_with_textured_brushstrokes_deep_40003.jpg', skill: 'วิเคราะห์ผลเลือด (เผยตัวตนได้): ตรวจเลือดเป้าหมายได้ ข้อจำกัด: ห้ามบอกคำตอบตรงๆ ต้องบอกเป็น "การตกตะกอนของหมู่เลือด" เท่านั้น', story: 'คุณเชี่ยวชาญการพิสูจน์หลักฐานทางวิทยาศาสตร์และร่องรอยเล็กๆ ที่สายตาคนธรรมดามองไม่เห็น' },
+      { role: 'นักสืบ', count: 4, color: 'bg-blue-950', text: 'text-blue-100', image: 'https://i.postimg.cc/tgN9PNnT/creation_2471387094.jpg', skill: 'สืบหาเบาะแส (ห้ามเผยตัวตน): ตรวจสอบร่องรอยเลือดของผู้ตาย/ผู้ต้องสงสัย ข้อจำกัด: ห้ามแสดงความคิดเห็นกับผู้เล่นอื่น ยกเว้นคุยกับเทคนิคการแพทย์แบบลับๆ', story: 'คุณถูกจ้างมาไขคดีนี้ หน้าที่คือปะติดปะต่อเรื่องราวและลากคอฆาตกรตัวจริงเข้าคุก' },
       { role: 'ผู้เห็นเหตุการณ์', count: 3, color: 'bg-amber-950', text: 'text-amber-100', image: 'https://i.postimg.cc/vmtG9txW/creation_2471389788.png', skill: 'พยานปากเอก (เผยตัวตนได้): รู้ว่าคนร้ายเลือดกรุ๊ปอะไร ข้อจำกัด: ห้ามพูด ทำได้แค่พยักหน้าเท่านั้น และตอบคำถามจากผู้อื่นได้ 1 คำถามต่อการประชุม 1 ครั้ง', story: 'คุณแอบเห็นเหตุการณ์บางอย่างในคืนนั้น แต่คุณกลัวเกินกว่าจะพูดออกไปตรงๆ' },
-      { role: 'ชาวบ้าน', count: 4, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน (ห้ามเผยตัวตน): หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
+      { role: 'ชาวบ้าน', count: 2, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน (ห้ามเผยตัวตน): หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
     ];
 
     const TOTAL_CARDS = 20;
@@ -650,6 +650,9 @@
       );
     }
 
+    // ===== Global lock ป้องกัน resetGame ถูกเรียกพร้อมกันจากหลาย client =====
+    let isCreatingRoom = false;
+
     function App() {
       const [user, setUser] = useState(null);
       const [gameState, setGameState] = useState(null);
@@ -666,6 +669,7 @@
       const [aiInsight, setAiInsight] = useState("");
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
       const [aiError, setAiError] = useState("");
+      const [appError, setAppError] = useState(null);
 
       // ===== Toast state =====
       const [toast, setToast] = useState(null);
@@ -677,6 +681,7 @@
       const drawLockRef = useRef(false);
       const resetLockRef = useRef(false);
       const shuffleTimerRef = useRef(null);
+      const gameStateRef = useRef(null); // เก็บ state ล่าสุดเพื่อเปรียบเทียบก่อน update
 
       const myCard = useMemo(() => gameState?.cards?.find(c => c.drawnBy === user?.uid), [gameState, user]);
       const stats = useMemo(() => {
@@ -734,16 +739,34 @@
         if (!user) return;
         const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
         const unsubscribe = onSnapshot(gameDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setGameState(docSnap.data());
-            setLoading(false);
-          } else {
-            resetGame();
+          try {
+            if (docSnap.exists()) {
+              const newData = docSnap.data();
+              // เปรียบเทียบ version ก่อน → ถ้าเหมือนเดิมไม่ต้อง re-render
+              const prevVersion = gameStateRef.current?.version;
+              const prevDrawn = gameStateRef.current?.cards?.filter(c => c.isDrawn).length;
+              const newDrawn = newData?.cards?.filter(c => c.isDrawn).length;
+              if (prevVersion === newData?.version && prevDrawn === newDrawn) return;
+              gameStateRef.current = newData;
+              setGameState(newData);
+              setLoading(false);
+            } else {
+              // ===== ป้องกัน reset storm: ตรวจก่อนว่ามีคนกำลังสร้างอยู่หรือยัง =====
+              if (!isCreatingRoom) {
+                isCreatingRoom = true;
+                initRoom().finally(() => {
+                  // ปลดล็อคหลัง 3 วินาที ป้องกันหลายคนสร้างพร้อมกัน
+                  setTimeout(() => { isCreatingRoom = false; }, 3000);
+                });
+              }
+            }
+          } catch (err) {
+            console.error("onSnapshot handler error:", err);
           }
         }, (error) => {
-          // จัดการ error จาก onSnapshot (เช่น permission denied, network error)
           console.error("Firestore listener error:", error);
-          showToast("การเชื่อมต่อขัดข้อง กำลังพยายามใหม่...", "warn");
+          // ไม่ต้อง toast ซ้ำถ้ามี toast อยู่แล้ว
+          if (!toast) showToast("การเชื่อมต่อขัดข้อง กำลังพยายามใหม่...", "warn");
         });
         return () => unsubscribe();
       }, [user]);
@@ -788,10 +811,33 @@
         finally { setIsGeneratingAI(false); }
       };
 
-      // ===== resetGame: ใช้ Transaction เพื่อป้องกันข้อมูลชนกัน =====
+      // ===== initRoom: สร้างห้องใหม่เฉพาะเมื่อไม่มี (ป้องกัน race condition) =====
+      const initRoom = useCallback(async () => {
+        if (!user) return;
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          // ตรวจสอบอีกครั้งว่ายังไม่มีจริงก่อนสร้าง
+          const checkSnap = await getDoc(gameDocRef);
+          if (checkSnap.exists()) {
+            setLoading(false);
+            return; // มีคนสร้างไปแล้ว ไม่ต้องทำอะไร
+          }
+          const deck = generateDeck();
+          await setDoc(gameDocRef, {
+            cards: deck,
+            createdAt: new Date().toISOString(),
+            version: Date.now()
+          });
+        } catch (error) {
+          console.error("Init room error:", error);
+        } finally {
+          setLoading(false);
+        }
+      }, [user]);
+
+      // ===== resetGame: สำหรับปุ่ม Reset เท่านั้น =====
       const resetGame = useCallback(async () => {
         if (!user) return;
-        // ป้องกันกด Reset ซ้ำ
         if (resetLockRef.current) return;
         resetLockRef.current = true;
 
@@ -799,20 +845,17 @@
         try {
           const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
           const deck = generateDeck();
-          // ใช้ setDoc ที่นี่ปลอดภัยเพราะเป็นการรีเซ็ตทั้งก้อน
-          // แต่เพิ่ม version number เพื่อให้ client ตรวจจับได้ว่ามีการรีเซ็ต
           await setDoc(gameDocRef, {
             cards: deck,
             createdAt: new Date().toISOString(),
-            version: Date.now() // ป้องกันการชนกัน
+            version: Date.now()
           });
         } catch (error) {
           console.error("Reset Error:", error);
           showToast("รีเซ็ตเกมไม่สำเร็จ กรุณาลองใหม่", "error");
         } finally {
           setLoading(false);
-          // ปลดล็อคหลังจาก delay เพื่อป้องกันกดซ้ำ
-          setTimeout(() => { resetLockRef.current = false; }, 2000);
+          setTimeout(() => { resetLockRef.current = false; }, 3000);
         }
       }, [user, showToast]);
 
@@ -1052,4 +1095,3 @@
 </body>
 
 </html>
-
