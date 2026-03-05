@@ -167,8 +167,12 @@
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
       const [aiError, setAiError] = useState("");
 
-      const myCard = useMemo(() => gameState?.cards.find(c => c.drawnBy === user?.uid), [gameState, user]);
-      const stats = useMemo(() => ({ drawn: gameState?.cards.filter(c => c.isDrawn).length || 0, left: TOTAL_CARDS - (gameState?.cards.filter(c => c.isDrawn).length || 0) }), [gameState]);
+      const myCard = useMemo(() => gameState?.cards?.find(c => c.drawnBy === user?.uid), [gameState, user]);
+      const stats = useMemo(() => {
+        if (!gameState?.cards) return { drawn: 0, left: TOTAL_CARDS };
+        const drawnCount = gameState.cards.filter(c => c.isDrawn).length;
+        return { drawn: drawnCount, left: TOTAL_CARDS - drawnCount };
+      }, [gameState]);
 
       // ล้างสถานะอนิเมชันทันที หากโดนรีเซ็ตการ์ด (ป้องกันจอมืด/เด้งค้าง)
       useEffect(() => {
@@ -179,6 +183,7 @@
           setAiInsight("");
           setAiError("");
           setIsGeneratingAI(false);
+          setIsShuffling(false);
         }
       }, [myCard]);
 
@@ -253,42 +258,46 @@
         setLoading(false);
       };
 
-      // แก้ไข: ใช้ Transaction เพื่อป้องกันข้อมูลชนกันเวลาหลายคนกดจั่วพร้อมกัน
+      // แก้ไข: ใช้ Transaction ทันทีเพื่อป้องกันข้อมูลชนกัน แล้วค่อยหน่วงเวลาแสดงผลหน้าจอ 2.5 วิ
       const handleDrawWithAnimation = async () => {
-        if (!user || isShuffling) return;
+        if (!user || isShuffling || myCard) return;
         setIsShuffling(true);
         
-        setTimeout(async () => {
-          try {
-            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          
+          // Transaction จะล็อกข้อมูลและจัดคิวให้คนกดพร้อมกัน (Atomic Update)
+          await runTransaction(db, async (transaction) => {
+            const docSnap = await transaction.get(gameDocRef);
+            if (!docSnap.exists()) throw new Error("ไม่มีห้องเล่นเกมนี้อยู่");
             
-            // Transaction จะล็อกข้อมูลและจัดคิวให้คนกดพร้อมกันได้ทีละคน (Atomic Update)
-            await runTransaction(db, async (transaction) => {
-              const docSnap = await transaction.get(gameDocRef);
-              if (!docSnap.exists()) throw "ไม่มีห้องเล่นเกมนี้อยู่";
-              
-              const currentData = docSnap.data();
-              
-              // ตรวจสอบเพื่อป้องกันการกดย้ำหรือถ้าเรามีการ์ดอยู่แล้ว
-              if (currentData.cards.find(c => c.drawnBy === user.uid)) return;
+            const currentData = docSnap.data();
+            if (!currentData || !currentData.cards) throw new Error("ข้อมูลขัดข้อง");
+            
+            // ตรวจสอบเพื่อป้องกันการกดย้ำหรือถ้าเรามีการ์ดอยู่แล้ว
+            if (currentData.cards.find(c => c.drawnBy === user.uid)) return;
 
-              const idx = currentData.cards.findIndex(c => !c.isDrawn);
-              if (idx === -1) throw "การ์ดหมดแล้ว!";
+            const idx = currentData.cards.findIndex(c => !c.isDrawn);
+            if (idx === -1) throw new Error("การ์ดหมดแล้ว!");
 
-              const updatedCards = [...currentData.cards];
-              updatedCards[idx].isDrawn = true;
-              updatedCards[idx].drawnBy = user.uid;
+            // ต้องทำ Deep Copy เสมอ ป้องกัน State Mutate ตอน Transaction ตีกัน
+            const updatedCards = currentData.cards.map(c => ({...c}));
+            updatedCards[idx].isDrawn = true;
+            updatedCards[idx].drawnBy = user.uid;
 
-              transaction.update(gameDocRef, { cards: updatedCards });
-            });
+            transaction.update(gameDocRef, { cards: updatedCards });
+          });
 
-            setJustDrawn(true);
-          } catch (error) {
-            console.error("ข้อผิดพลาดในการดึงการ์ด:", error);
-          } finally {
+          // เมื่อจองการ์ดในระบบเสร็จสมบูรณ์ ค่อยแสดงอนิเมชันสับไพ่ 2.5 วินาทีหลอกตา
+          setTimeout(() => {
             setIsShuffling(false);
-          }
-        }, 2500);
+            setJustDrawn(true);
+          }, 2500);
+
+        } catch (error) {
+          console.error("ข้อผิดพลาดในการดึงการ์ด:", error);
+          setIsShuffling(false);
+        }
       };
 
       if (!hasEntered) {
@@ -343,7 +352,7 @@
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center py-6">
-              {!myCard ? (
+              {(!myCard || isShuffling) ? (
                 <div className="flex flex-col items-center">
                   {isShuffling ? (
                     <div className="relative w-48 h-64 mb-10 flex items-center justify-center">
