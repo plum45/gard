@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Murder Mystery Card Game</title>
-  
+
   <!-- โหลด Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- โหลด Lottie สำหรับแอนิเมชันหน้าแรก -->
   <script type="module" src="https://unpkg.com/@lottiefiles/dotlottie-wc@0.9.3/dist/dotlottie-wc.js"></script>
 
@@ -17,7 +18,7 @@
   <style>
     /* เอฟเฟกต์แสงไฟส่อง (Spotlight) */
     .spotlight-overlay {
-      background: radial-gradient(circle at 50% 50%, transparent 5%, rgba(0,0,0,0.92) 35%, rgba(0,0,0,1) 100%);
+      background: radial-gradient(circle at 50% 50%, transparent 5%, rgba(0, 0, 0, 0.92) 35%, rgba(0, 0, 0, 1) 100%);
       pointer-events: none;
     }
 
@@ -30,14 +31,27 @@
       transition: opacity 1.5s ease-in-out;
       opacity: 0;
     }
-    .iris-active { opacity: 1; }
+
+    .iris-active {
+      opacity: 1;
+    }
 
     /* อนิเมชันตัวละครเดินออกมา */
     @keyframes walkFromSide {
-      0% { transform: translateX(-150%) scale(0.9); opacity: 0; }
-      100% { transform: translateX(0) scale(1); opacity: 1; }
+      0% {
+        transform: translateX(-150%) scale(0.9);
+        opacity: 0;
+      }
+
+      100% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+      }
     }
-    .animate-walk-in { animation: walkFromSide 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+    .animate-walk-in {
+      animation: walkFromSide 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
 
     /* อนิเมชันไฟดับ (Blackout) */
     .blackout-screen {
@@ -50,57 +64,478 @@
 
     /* อนิเมชันเปิดไฟ (Lights On) */
     @keyframes lightsOn {
-      0% { opacity: 0; filter: brightness(0); }
-      100% { opacity: 1; filter: brightness(1); }
+      0% {
+        opacity: 0;
+        filter: brightness(0);
+      }
+
+      100% {
+        opacity: 1;
+        filter: brightness(1);
+      }
     }
-    .animate-lights-on { animation: lightsOn 1s ease-out forwards; }
-    
+
+    .animate-lights-on {
+      animation: lightsOn 1s ease-out forwards;
+    }
+
     /* ซ่อน scrollbar แต่ยังคงเลื่อนได้ */
-    ::-webkit-scrollbar { display: none; }
-    body { 
-      -ms-overflow-style: none; 
-      scrollbar-width: none; 
-      overflow-x: hidden; 
-      touch-action: manipulation; 
+    ::-webkit-scrollbar {
+      display: none;
     }
-    .crisp-image { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
+
+    body {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+
+    .crisp-image {
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
 
     /* อนิเมชันสับไพ่ */
-    @keyframes shuffle-h1 { 0%, 100% { transform: translateX(0); z-index: 30; } 50% { transform: translateX(-130px); z-index: 10; } }
-    @keyframes shuffle-h2 { 0%, 100% { transform: translateX(0); z-index: 10; } 50% { transform: translateX(130px); z-index: 30; } }
-    .animate-shuffle-1 { animation: shuffle-h1 0.8s infinite ease-in-out; }
-    .animate-shuffle-2 { animation: shuffle-h2 0.8s infinite ease-in-out 0.15s; }
+    @keyframes shuffle-h1 {
 
-    .typing-effect { overflow: hidden; white-space: normal; animation: typing 3.5s steps(40, end); }
-    @keyframes typing { from { max-height: 0; opacity: 0; } to { max-height: 500px; opacity: 1; } }
+      0%,
+      100% {
+        transform: translateX(0);
+        z-index: 30;
+      }
+
+      50% {
+        transform: translateX(-130px);
+        z-index: 10;
+      }
+    }
+
+    @keyframes shuffle-h2 {
+
+      0%,
+      100% {
+        transform: translateX(0);
+        z-index: 10;
+      }
+
+      50% {
+        transform: translateX(130px);
+        z-index: 30;
+      }
+    }
+
+    .animate-shuffle-1 {
+      animation: shuffle-h1 0.8s infinite ease-in-out;
+    }
+
+    .animate-shuffle-2 {
+      animation: shuffle-h2 0.8s infinite ease-in-out 0.15s;
+    }
+
+    .typing-effect {
+      overflow: hidden;
+      white-space: normal;
+      animation: typing 3.5s steps(40, end);
+    }
+
+    @keyframes typing {
+      from {
+        max-height: 0;
+        opacity: 0;
+      }
+
+      to {
+        max-height: 500px;
+        opacity: 1;
+      }
+    }
+
+    /* Toast notification สำหรับแจ้งเตือน error */
+    @keyframes slideDown {
+      0% {
+        transform: translateX(-50%) translateY(-120%);
+        opacity: 0;
+      }
+
+      100% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideUp {
+      0% {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translateX(-50%) translateY(-120%);
+        opacity: 0;
+      }
+    }
+
+    .toast-enter {
+      animation: slideDown 0.4s ease-out forwards;
+    }
+
+    .toast-exit {
+      animation: slideUp 0.3s ease-in forwards;
+    }
+
+    /* ===== 🩸 Blood Drip Effect ===== */
+    @keyframes bloodDrip {
+      0% {
+        transform: translateY(-20px);
+        opacity: 0;
+        height: 0;
+      }
+
+      10% {
+        opacity: 1;
+      }
+
+      60% {
+        height: var(--drip-h, 80px);
+      }
+
+      85% {
+        opacity: 1;
+        height: var(--drip-h, 80px);
+      }
+
+      100% {
+        transform: translateY(105vh);
+        opacity: 0;
+        height: var(--drip-h, 80px);
+      }
+    }
+
+    .blood-drip {
+      position: fixed;
+      top: -20px;
+      width: 3px;
+      z-index: 60;
+      background: linear-gradient(to bottom, #4a0000, #8b0000, #ff000080, transparent);
+      border-radius: 0 0 50% 50%;
+      pointer-events: none;
+      animation: bloodDrip var(--dur, 6s) var(--delay, 0s) ease-in infinite;
+    }
+
+    /* ===== 🌫️ Fog / Smoke Effect ===== */
+    @keyframes fogDrift {
+      0% {
+        transform: translateX(-10%) scaleY(1);
+        opacity: 0.15;
+      }
+
+      50% {
+        transform: translateX(5%) scaleY(1.1);
+        opacity: 0.25;
+      }
+
+      100% {
+        transform: translateX(-10%) scaleY(1);
+        opacity: 0.15;
+      }
+    }
+
+    .fog-layer {
+      position: fixed;
+      bottom: 0;
+      left: -10%;
+      width: 120%;
+      pointer-events: none;
+      z-index: 10;
+      background: linear-gradient(to top, rgba(30, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0.15) 40%, transparent 100%);
+      animation: fogDrift var(--fog-dur, 12s) ease-in-out infinite;
+    }
+
+    /* ===== 💀 Glitch Text Effect ===== */
+    @keyframes glitch1 {
+
+      0%,
+      90%,
+      100% {
+        clip-path: inset(0 0 0 0);
+        transform: translate(0);
+      }
+
+      92% {
+        clip-path: inset(40% 0 20% 0);
+        transform: translate(-4px, 2px);
+      }
+
+      94% {
+        clip-path: inset(10% 0 60% 0);
+        transform: translate(4px, -2px);
+      }
+
+      96% {
+        clip-path: inset(60% 0 5% 0);
+        transform: translate(-2px, 1px);
+      }
+
+      98% {
+        clip-path: inset(20% 0 40% 0);
+        transform: translate(3px, -1px);
+      }
+    }
+
+    @keyframes glitch2 {
+
+      0%,
+      88%,
+      100% {
+        clip-path: inset(0 0 0 0);
+        transform: translate(0);
+        opacity: 0;
+      }
+
+      90% {
+        clip-path: inset(50% 0 10% 0);
+        transform: translate(5px, -3px);
+        opacity: 0.7;
+      }
+
+      93% {
+        clip-path: inset(15% 0 55% 0);
+        transform: translate(-5px, 3px);
+        opacity: 0.7;
+      }
+
+      96% {
+        clip-path: inset(70% 0 5% 0);
+        transform: translate(3px, -2px);
+        opacity: 0.7;
+      }
+    }
+
+    .glitch-text {
+      position: relative;
+      animation: glitch1 4s infinite linear;
+    }
+
+    .glitch-text::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      color: #ff0000;
+      opacity: 0;
+      animation: glitch2 4s infinite linear 0.05s;
+    }
+
+    /* ===== 🃏 Card Float (Idle hover) ===== */
+    @keyframes cardFloat {
+
+      0%,
+      100% {
+        transform: translateY(0) rotate(0deg);
+      }
+
+      25% {
+        transform: translateY(-8px) rotate(0.5deg);
+      }
+
+      75% {
+        transform: translateY(4px) rotate(-0.3deg);
+      }
+    }
+
+    .card-float {
+      animation: cardFloat 4s ease-in-out infinite;
+    }
+
+    /* ===== ✨ Particle Burst on Reveal ===== */
+    @keyframes particleFly {
+      0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: translate(var(--px, 50px), var(--py, -80px)) scale(0);
+        opacity: 0;
+      }
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 200;
+      animation: particleFly var(--p-dur, 1.2s) var(--p-delay, 0s) cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+    }
+
+    /* ===== ⚡ Screen Flicker ===== */
+    @keyframes screenFlicker {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      5% {
+        opacity: 0.3;
+      }
+
+      10% {
+        opacity: 1;
+      }
+
+      12% {
+        opacity: 0.5;
+      }
+
+      14% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      52% {
+        opacity: 0.2;
+      }
+
+      53% {
+        opacity: 1;
+      }
+
+      80% {
+        opacity: 1;
+      }
+
+      82% {
+        opacity: 0.6;
+      }
+
+      83% {
+        opacity: 1;
+      }
+    }
+
+    .screen-flicker {
+      animation: screenFlicker 3s ease-in-out 1;
+    }
+
+    /* ===== 🔴 Dramatic Glow Pulse ===== */
+    @keyframes glowPulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 15px rgba(220, 38, 38, 0.3), 0 0 30px rgba(220, 38, 38, 0.1);
+      }
+
+      50% {
+        box-shadow: 0 0 30px rgba(220, 38, 38, 0.6), 0 0 60px rgba(220, 38, 38, 0.3), 0 0 90px rgba(220, 38, 38, 0.1);
+      }
+    }
+
+    .glow-pulse {
+      animation: glowPulse 2.5s ease-in-out infinite;
+    }
+
+    /* ===== 📜 Slide Up Entrance ===== */
+    @keyframes slideUpIn {
+      0% {
+        transform: translateY(60px);
+        opacity: 0;
+      }
+
+      100% {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .animate-slide-up-in {
+      animation: slideUpIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* ===== 💓 Heartbeat for icons ===== */
+    @keyframes heartbeat {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      14% {
+        transform: scale(1.15);
+      }
+
+      28% {
+        transform: scale(1);
+      }
+
+      42% {
+        transform: scale(1.1);
+      }
+
+      56% {
+        transform: scale(1);
+      }
+    }
+
+    .heartbeat {
+      animation: heartbeat 2s ease-in-out infinite;
+    }
+
+    /* ===== 🔦 Scanning Line ===== */
+    @keyframes scanLine {
+      0% {
+        top: -5%;
+      }
+
+      100% {
+        top: 105%;
+      }
+    }
+
+    .scan-line {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      z-index: 30;
+      background: linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.6), rgba(255, 50, 50, 0.9), rgba(255, 0, 0, 0.6), transparent);
+      box-shadow: 0 0 15px rgba(255, 0, 0, 0.5), 0 0 30px rgba(255, 0, 0, 0.2);
+      pointer-events: none;
+      animation: scanLine 2.5s linear infinite;
+    }
   </style>
 </head>
+
 <body class="bg-[#050505] text-white">
-  
+
   <div id="root"></div>
 
   <script type="text/babel" data-type="module">
-    import React, { useState, useEffect, useMemo, useRef } from 'https://esm.sh/react@18.2.0';
+    import React, { useState, useEffect, useMemo, useRef, useCallback } from 'https://esm.sh/react@18.2.0';
     import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-    // เพิ่ม runTransaction เพื่อเข้าคิวการดึงข้อมูลและป้องกันบั๊กเมื่อคนกดพร้อมกัน
-    import { getFirestore, doc, setDoc, onSnapshot, collection, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, runTransaction } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
-    const apiKey = ""; 
+    const apiKey = "";
     const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
 
-    const firebaseConfig = typeof __firebase_config !== 'undefined' 
-      ? JSON.parse(__firebase_config) 
+    const firebaseConfig = typeof __firebase_config !== 'undefined'
+      ? JSON.parse(__firebase_config)
       : {
-          apiKey: "AIzaSyALJV_LhnYDU01M7DtFnDQnByscqf_ECD8",
-          authDomain: "fbi52-d8df3.firebaseapp.com",
-          projectId: "fbi52-d8df3",
-          storageBucket: "fbi52-d8df3.firebasestorage.app",
-          messagingSenderId: "945159237123",
-          appId: "1:945159237123:web:1539c68592a057d9c1e836",
-          measurementId: "G-7TNTTKBJ5R"
-        };
+        apiKey: "AIzaSyALJV_LhnYDU01M7DtFnDQnByscqf_ECD8",
+        authDomain: "fbi52-d8df3.firebaseapp.com",
+        projectId: "fbi52-d8df3",
+        storageBucket: "fbi52-d8df3.firebasestorage.app",
+        messagingSenderId: "945159237123",
+        appId: "1:945159237123:web:1539c68592a057d9c1e836",
+        measurementId: "G-7TNTTKBJ5R"
+      };
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'murder-mystery-game';
     const app = initializeApp(firebaseConfig);
@@ -148,24 +583,100 @@
     };
 
     const BACKGROUND_IMAGE_URL = 'https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg';
-    const CARD_BACK_IMAGE_URL = 'https://i.postimg.cc/yNy79y33/creation_2471378801.png'; 
+    const CARD_BACK_IMAGE_URL = 'https://i.postimg.cc/yNy79y33/creation_2471378801.png';
+
+    // ===== BloodDrips Component =====
+    function BloodDrips({ count = 6 }) {
+      const drips = useMemo(() => Array.from({ length: count }, (_, i) => ({
+        left: `${5 + Math.random() * 90}%`,
+        dur: `${5 + Math.random() * 6}s`,
+        delay: `${Math.random() * 8}s`,
+        h: `${40 + Math.random() * 80}px`,
+        w: `${2 + Math.random() * 2}px`,
+      })), [count]);
+      return <>{drips.map((d, i) => <div key={i} className="blood-drip" style={{ left: d.left, width: d.w, '--dur': d.dur, '--delay': d.delay, '--drip-h': d.h }} />)}</>;
+    }
+
+    // ===== FogOverlay Component =====
+    function FogOverlay() {
+      return (
+        <>
+          <div className="fog-layer" style={{ height: '35vh', '--fog-dur': '14s' }} />
+          <div className="fog-layer" style={{ height: '25vh', '--fog-dur': '10s', opacity: 0.1 }} />
+        </>
+      );
+    }
+
+    // ===== ParticleBurst Component =====
+    function ParticleBurst({ active }) {
+      const particles = useMemo(() => active ? Array.from({ length: 20 }, (_, i) => {
+        const angle = (i / 20) * Math.PI * 2;
+        const dist = 60 + Math.random() * 100;
+        return {
+          px: `${Math.cos(angle) * dist}px`,
+          py: `${Math.sin(angle) * dist}px`,
+          dur: `${0.6 + Math.random() * 0.8}s`,
+          delay: `${Math.random() * 0.3}s`,
+          color: ['#ff0000', '#ff4444', '#ffaa00', '#ff6600', '#ffffff'][Math.floor(Math.random() * 5)],
+          size: `${3 + Math.random() * 5}px`,
+        };
+      }) : [], [active]);
+      if (!active) return null;
+      return <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[200]">
+        {particles.map((p, i) => <div key={i} className="particle" style={{ '--px': p.px, '--py': p.py, '--p-dur': p.dur, '--p-delay': p.delay, background: p.color, width: p.size, height: p.size }} />)}
+      </div>;
+    }
+
+    // ===== Toast Component สำหรับแจ้งเตือน =====
+    function Toast({ message, type, onClose }) {
+      const [exiting, setExiting] = useState(false);
+
+      useEffect(() => {
+        const timer = setTimeout(() => {
+          setExiting(true);
+          setTimeout(onClose, 400);
+        }, 4000);
+        return () => clearTimeout(timer);
+      }, [onClose]);
+
+      const bgColor = type === 'error' ? 'bg-red-900/95' : type === 'warn' ? 'bg-amber-900/95' : 'bg-emerald-900/95';
+      const icon = type === 'error' ? '⚠️' : type === 'warn' ? '⏳' : '✅';
+
+      return (
+        <div className={`fixed top-4 left-1/2 z-[200] ${bgColor} text-white px-6 py-3 rounded-xl shadow-2xl border border-white/10 backdrop-blur-md flex items-center gap-3 max-w-[90vw] ${exiting ? 'toast-exit' : 'toast-enter'}`}>
+          <span className="text-xl">{icon}</span>
+          <span className="text-sm font-medium">{message}</span>
+        </div>
+      );
+    }
 
     function App() {
       const [user, setUser] = useState(null);
       const [gameState, setGameState] = useState(null);
       const [loading, setLoading] = useState(true);
-      const [introStage, setIntroStage] = useState('arrival'); 
-      const [hasEntered, setHasEntered] = useState(false); 
-      
+      const [introStage, setIntroStage] = useState('arrival');
+      const [hasEntered, setHasEntered] = useState(false);
+
       const [isShuffling, setIsShuffling] = useState(false);
       const [isFlipping, setIsFlipping] = useState(false);
-      const [isDimming, setIsDimming] = useState(false); 
+      const [isDimming, setIsDimming] = useState(false);
       const [justDrawn, setJustDrawn] = useState(false);
       const [spotlightPos, setSpotlightPos] = useState({ x: 50, y: 50 });
-      
+
       const [aiInsight, setAiInsight] = useState("");
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
       const [aiError, setAiError] = useState("");
+
+      // ===== Toast state =====
+      const [toast, setToast] = useState(null);
+      const showToast = useCallback((message, type = 'error') => {
+        setToast({ message, type, key: Date.now() });
+      }, []);
+
+      // ===== Ref lock เพื่อป้องกันการกดซ้ำ/ข้อมูลชนกัน =====
+      const drawLockRef = useRef(false);
+      const resetLockRef = useRef(false);
+      const shuffleTimerRef = useRef(null);
 
       const myCard = useMemo(() => gameState?.cards?.find(c => c.drawnBy === user?.uid), [gameState, user]);
       const stats = useMemo(() => {
@@ -184,8 +695,24 @@
           setAiError("");
           setIsGeneratingAI(false);
           setIsShuffling(false);
+          // Clear shuffle timer ถ้ามี
+          if (shuffleTimerRef.current) {
+            clearTimeout(shuffleTimerRef.current);
+            shuffleTimerRef.current = null;
+          }
+          // ปลดล็อคเพื่อให้กดได้ใหม่
+          drawLockRef.current = false;
         }
       }, [myCard]);
+
+      // Cleanup shuffle timer on unmount
+      useEffect(() => {
+        return () => {
+          if (shuffleTimerRef.current) {
+            clearTimeout(shuffleTimerRef.current);
+          }
+        };
+      }, []);
 
       useEffect(() => {
         const initAuth = async () => {
@@ -193,7 +720,10 @@
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
               await signInWithCustomToken(auth, __initial_auth_token);
             } else { await signInAnonymously(auth); }
-          } catch (error) { console.error("Auth Error:", error); }
+          } catch (error) {
+            console.error("Auth Error:", error);
+            showToast("เข้าสู่ระบบไม่สำเร็จ กรุณารีเฟรชหน้า", "error");
+          }
         };
         initAuth();
         const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -204,8 +734,16 @@
         if (!user) return;
         const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
         const unsubscribe = onSnapshot(gameDocRef, (docSnap) => {
-          if (docSnap.exists()) { setGameState(docSnap.data()); setLoading(false); }
-          else { resetGame(); }
+          if (docSnap.exists()) {
+            setGameState(docSnap.data());
+            setLoading(false);
+          } else {
+            resetGame();
+          }
+        }, (error) => {
+          // จัดการ error จาก onSnapshot (เช่น permission denied, network error)
+          console.error("Firestore listener error:", error);
+          showToast("การเชื่อมต่อขัดข้อง กำลังพยายามใหม่...", "warn");
         });
         return () => unsubscribe();
       }, [user]);
@@ -229,8 +767,8 @@
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('touchmove', handleMove, { passive: true });
         window.addEventListener('touchstart', handleMove, { passive: true });
-        return () => { 
-          window.removeEventListener('mousemove', handleMove); 
+        return () => {
+          window.removeEventListener('mousemove', handleMove);
           window.removeEventListener('touchmove', handleMove);
           window.removeEventListener('touchstart', handleMove);
         };
@@ -250,59 +788,124 @@
         finally { setIsGeneratingAI(false); }
       };
 
-      const resetGame = async () => {
+      // ===== resetGame: ใช้ Transaction เพื่อป้องกันข้อมูลชนกัน =====
+      const resetGame = useCallback(async () => {
         if (!user) return;
-        setLoading(true);
-        const deck = generateDeck();
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01'), { cards: deck, createdAt: new Date().toISOString() });
-        setLoading(false);
-      };
+        // ป้องกันกด Reset ซ้ำ
+        if (resetLockRef.current) return;
+        resetLockRef.current = true;
 
-      // แก้ไข: ใช้ Transaction ทันทีเพื่อป้องกันข้อมูลชนกัน แล้วค่อยหน่วงเวลาแสดงผลหน้าจอ 2.5 วิ
-      const handleDrawWithAnimation = async () => {
-        if (!user || isShuffling || myCard) return;
-        setIsShuffling(true);
-        
+        setLoading(true);
         try {
           const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
-          
-          // Transaction จะล็อกข้อมูลและจัดคิวให้คนกดพร้อมกัน (Atomic Update)
-          await runTransaction(db, async (transaction) => {
-            const docSnap = await transaction.get(gameDocRef);
-            if (!docSnap.exists()) throw new Error("ไม่มีห้องเล่นเกมนี้อยู่");
-            
-            const currentData = docSnap.data();
-            if (!currentData || !currentData.cards) throw new Error("ข้อมูลขัดข้อง");
-            
-            // ตรวจสอบเพื่อป้องกันการกดย้ำหรือถ้าเรามีการ์ดอยู่แล้ว
-            if (currentData.cards.find(c => c.drawnBy === user.uid)) return;
-
-            const idx = currentData.cards.findIndex(c => !c.isDrawn);
-            if (idx === -1) throw new Error("การ์ดหมดแล้ว!");
-
-            // ต้องทำ Deep Copy เสมอ ป้องกัน State Mutate ตอน Transaction ตีกัน
-            const updatedCards = currentData.cards.map(c => ({...c}));
-            updatedCards[idx].isDrawn = true;
-            updatedCards[idx].drawnBy = user.uid;
-
-            transaction.update(gameDocRef, { cards: updatedCards });
+          const deck = generateDeck();
+          // ใช้ setDoc ที่นี่ปลอดภัยเพราะเป็นการรีเซ็ตทั้งก้อน
+          // แต่เพิ่ม version number เพื่อให้ client ตรวจจับได้ว่ามีการรีเซ็ต
+          await setDoc(gameDocRef, {
+            cards: deck,
+            createdAt: new Date().toISOString(),
+            version: Date.now() // ป้องกันการชนกัน
           });
+        } catch (error) {
+          console.error("Reset Error:", error);
+          showToast("รีเซ็ตเกมไม่สำเร็จ กรุณาลองใหม่", "error");
+        } finally {
+          setLoading(false);
+          // ปลดล็อคหลังจาก delay เพื่อป้องกันกดซ้ำ
+          setTimeout(() => { resetLockRef.current = false; }, 2000);
+        }
+      }, [user, showToast]);
 
-          // เมื่อจองการ์ดในระบบเสร็จสมบูรณ์ ค่อยแสดงอนิเมชันสับไพ่ 2.5 วินาทีหลอกตา
-          setTimeout(() => {
+      // ===== handleDrawWithAnimation: เพิ่ม retry + lock ที่แข็งแกร่งขึ้น =====
+      const handleDrawWithAnimation = useCallback(async () => {
+        // Guard: ป้องกันกดซ้ำด้วย Ref (ไม่ขึ้นกับ React re-render)
+        if (!user || drawLockRef.current || myCard) return;
+        drawLockRef.current = true;
+        setIsShuffling(true);
+
+        const MAX_RETRIES = 5;
+        let retryCount = 0;
+        let success = false;
+
+        while (retryCount < MAX_RETRIES && !success) {
+          try {
+            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+
+            await runTransaction(db, async (transaction) => {
+              const docSnap = await transaction.get(gameDocRef);
+              if (!docSnap.exists()) throw new Error("NO_ROOM");
+
+              const currentData = docSnap.data();
+              if (!currentData || !currentData.cards) throw new Error("CORRUPT_DATA");
+
+              // ตรวจสอบเพื่อป้องกันการกดย้ำหรือถ้าเรามีการ์ดอยู่แล้ว
+              if (currentData.cards.find(c => c.drawnBy === user.uid)) {
+                // เรามีการ์ดแล้ว — ให้ถือว่าสำเร็จ ไม่ต้อง update
+                success = true;
+                return;
+              }
+
+              const idx = currentData.cards.findIndex(c => !c.isDrawn);
+              if (idx === -1) throw new Error("NO_CARDS_LEFT");
+
+              // Deep Copy เพื่อป้องกัน State Mutate ตอน Transaction ตีกัน
+              const updatedCards = currentData.cards.map(c => ({ ...c }));
+              updatedCards[idx].isDrawn = true;
+              updatedCards[idx].drawnBy = user.uid;
+
+              transaction.update(gameDocRef, { cards: updatedCards });
+            });
+
+            success = true;
+          } catch (error) {
+            retryCount++;
+
+            // ข้อผิดพลาดที่ไม่ต้อง retry
+            if (error.message === "NO_ROOM") {
+              showToast("ไม่พบห้องเกม กรุณารีเฟรชหน้า", "error");
+              break;
+            }
+            if (error.message === "NO_CARDS_LEFT") {
+              showToast("การ์ดหมดแล้ว! รอ Host รีเซ็ตเกม", "warn");
+              break;
+            }
+            if (error.message === "CORRUPT_DATA") {
+              showToast("ข้อมูลเกมขัดข้อง กรุณารีเฟรช", "error");
+              break;
+            }
+
+            // Firestore Transaction contention — retry ด้วย exponential backoff
+            if (retryCount < MAX_RETRIES) {
+              const backoff = Math.min(200 * Math.pow(2, retryCount) + Math.random() * 100, 3000);
+              console.warn(`Transaction retry ${retryCount}/${MAX_RETRIES}, backoff ${Math.round(backoff)}ms`);
+              await new Promise(resolve => setTimeout(resolve, backoff));
+            } else {
+              console.error("Transaction failed after max retries:", error);
+              showToast("เซิร์ฟเวอร์หนาแน่น กรุณาลองใหม่อีกครั้ง", "error");
+            }
+          }
+        }
+
+        if (success) {
+          // เมื่อจองการ์ดในระบบเสร็จสมบูรณ์ ค่อยแสดงอนิเมชันสับไพ่
+          shuffleTimerRef.current = setTimeout(() => {
             setIsShuffling(false);
             setJustDrawn(true);
+            drawLockRef.current = false;
+            shuffleTimerRef.current = null;
           }, 2500);
-
-        } catch (error) {
-          console.error("ข้อผิดพลาดในการดึงการ์ด:", error);
+        } else {
+          // ถ้า fail ให้ปลดล็อคทันที
           setIsShuffling(false);
+          drawLockRef.current = false;
         }
-      };
+      }, [user, myCard, showToast]);
 
       if (!hasEntered) {
         return (
           <div className="min-h-screen relative flex flex-col items-center justify-center overflow-hidden bg-black">
+            <BloodDrips count={4} />
+            <FogOverlay />
             {introStage === 'arrival' && (
               <div className="relative flex flex-col items-center">
                 <div className="absolute inset-0 spotlight-overlay z-10"></div>
@@ -315,13 +918,13 @@
             )}
             {introStage === 'blackout' && <div className="blackout-screen"></div>}
             {introStage === 'ready' && (
-              <div className="w-full h-full flex flex-col items-center justify-center animate-lights-on p-4"
-                   style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', width: '100vw', height: '100vh' }}>
+              <div className="w-full h-full flex flex-col items-center justify-center animate-lights-on screen-flicker p-4"
+                style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', width: '100vw', height: '100vh' }}>
                 <div className="absolute inset-0 bg-black/60"></div>
-                <div className="relative z-10 text-center max-w-lg">
-                  <h1 className="text-5xl md:text-7xl font-black text-red-600 mb-2 tracking-[0.25em] drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]">MURDER MYSTERY</h1>
+                <div className="relative z-10 text-center max-w-lg animate-slide-up-in">
+                  <h1 className="glitch-text text-5xl md:text-7xl font-black text-red-600 mb-2 tracking-[0.25em] drop-shadow-[0_0_25px_rgba(220,38,38,0.8)]" data-text="MURDER MYSTERY">MURDER MYSTERY</h1>
                   <p className="text-gray-400 mb-12 font-mono text-sm tracking-[0.5em] uppercase">Criminal Archive #9942</p>
-                  <button onClick={() => setHasEntered(true)} disabled={loading} className="group relative w-full overflow-hidden rounded-full p-[3px] active:scale-95 shadow-[0_0_40px_rgba(220,38,38,0.25)]">
+                  <button onClick={() => setHasEntered(true)} disabled={loading} className="group relative w-full overflow-hidden rounded-full p-[3px] active:scale-95 glow-pulse">
                     <div className="absolute inset-0 bg-gradient-to-r from-red-600 via-red-900 to-red-600 animate-pulse"></div>
                     <div className="relative bg-[#050505] rounded-full px-12 py-5 transition-all group-hover:bg-transparent">
                       <span className="text-white text-xl font-bold tracking-[0.4em] uppercase">{loading ? 'DECRYPTING...' : '🕵️‍♂️ INVESTIGATE'}</span>
@@ -330,15 +933,20 @@
                 </div>
               </div>
             )}
+            {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
           </div>
         );
       }
 
       return (
-        <div className="min-h-screen relative font-sans p-4 md:p-8 flex flex-col items-center" 
-             style={{backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', backgroundAttachment: 'fixed'}}>
-          
+        <div className="min-h-screen relative font-sans p-4 md:p-8 flex flex-col items-center"
+          style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', backgroundAttachment: 'fixed' }}>
+
+          <BloodDrips count={5} />
+          <FogOverlay />
           <div className={`iris-dimmer ${isDimming ? 'iris-active' : ''}`} style={{ background: `radial-gradient(circle at ${spotlightPos.x}% ${spotlightPos.y}%, transparent 0%, rgba(0,0,0,0.95) 45%, rgba(0,0,0,1) 100%)`, transition: 'opacity 1.5s, background 0.15s' }}></div>
+
+          {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
           <div className="max-w-3xl w-full mx-auto space-y-6 relative z-20 flex-1 flex flex-col pb-20">
             <div className={`bg-black/85 p-5 rounded-2xl border-t-4 border-red-900 shadow-[0_10px_40px_rgba(0,0,0,0.8)] transition-opacity duration-1000 ${isDimming ? 'opacity-30' : 'opacity-100'}`}>
@@ -347,7 +955,7 @@
                   <h2 className="text-gray-100 text-xl font-black tracking-widest flex items-center gap-3"><span className="text-red-600 animate-pulse">🩸</span> CASE STATUS</h2>
                   <p className="text-gray-400 text-sm font-mono mt-1 uppercase">Processed: {stats.drawn} | Remaining: {stats.left}</p>
                 </div>
-                <button onClick={resetGame} className="mt-4 sm:mt-0 text-xs font-bold tracking-widest bg-gray-900 hover:bg-red-950 border border-gray-700 px-5 py-2.5 rounded-full uppercase">Reset Archive</button>
+                <button onClick={resetGame} disabled={resetLockRef.current} className="mt-4 sm:mt-0 text-xs font-bold tracking-widest bg-gray-900 hover:bg-red-950 border border-gray-700 px-5 py-2.5 rounded-full uppercase disabled:opacity-50 disabled:cursor-not-allowed">Reset Archive</button>
               </div>
             </div>
 
@@ -356,25 +964,28 @@
                 <div className="flex flex-col items-center">
                   {isShuffling ? (
                     <div className="relative w-48 h-64 mb-10 flex items-center justify-center">
-                      <div className="absolute inset-0 bg-[#2a1b0d] rounded-2xl border-2 border-[#5c4a38] shadow-2xl animate-shuffle-1 overflow-hidden crisp-image" style={{backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")`, backgroundSize: 'cover'}}></div>
-                      <div className="absolute inset-0 bg-[#2a1b0d] rounded-2xl border-2 border-[#5c4a38] shadow-2xl animate-shuffle-2 overflow-hidden crisp-image" style={{backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")`, backgroundSize: 'cover'}}></div>
+                      <div className="absolute inset-0 bg-[#2a1b0d] rounded-2xl border-2 border-[#5c4a38] shadow-2xl animate-shuffle-1 overflow-hidden crisp-image" style={{ backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")`, backgroundSize: 'cover' }}></div>
+                      <div className="absolute inset-0 bg-[#2a1b0d] rounded-2xl border-2 border-[#5c4a38] shadow-2xl animate-shuffle-2 overflow-hidden crisp-image" style={{ backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")`, backgroundSize: 'cover' }}></div>
                       <div className="absolute z-20 text-white font-black text-[10px] tracking-[0.2em] bg-red-800/90 px-3 py-1.5 rounded uppercase border border-red-500/30">Analyzing...</div>
                     </div>
                   ) : (
-                    <div className="w-28 h-28 bg-black rounded-full border-4 border-gray-800 flex items-center justify-center shadow-[0_0_50px_rgba(220,38,38,0.25)] mb-10 overflow-hidden group">
-                      <div className="absolute inset-0 bg-red-600/10 animate-pulse"></div><span className="text-6xl group-hover:scale-110 transition-transform">💉</span>
+                    <div className="w-28 h-28 bg-black rounded-full border-4 border-gray-800 flex items-center justify-center glow-pulse mb-10 overflow-hidden group card-float relative">
+                      <div className="absolute inset-0 bg-red-600/10 animate-pulse"></div>
+                      <span className="text-6xl group-hover:scale-110 transition-transform heartbeat">💉</span>
+                      <div className="scan-line"></div>
                     </div>
                   )}
-                  <button onClick={handleDrawWithAnimation} disabled={stats.left === 0 || isShuffling} className="group relative bg-red-900 hover:bg-red-700 disabled:bg-gray-900 text-white px-10 py-6 rounded-3xl text-2xl font-black tracking-[0.2em] shadow-[0_10px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 uppercase flex flex-col items-center">
+                  <button onClick={handleDrawWithAnimation} disabled={stats.left === 0 || isShuffling || drawLockRef.current} className="group relative bg-red-900 hover:bg-red-700 disabled:bg-gray-900 disabled:opacity-60 text-white px-10 py-6 rounded-3xl text-2xl font-black tracking-[0.2em] shadow-[0_10px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 uppercase flex flex-col items-center disabled:cursor-not-allowed disabled:active:translate-y-0 glow-pulse">
                     <span>{isShuffling ? 'In Progress...' : 'Scan Blood'}</span>
                     <span className="text-[10px] font-mono tracking-widest text-red-300 mt-2">(Biometric Scan)</span>
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center w-full max-w-sm mx-auto relative">
-                  <div className={`perspective-1000 w-full px-6 z-50 ${justDrawn ? 'animate-shoot' : ''}`}>
-                    <div onClick={() => { if(!isFlipping) { setIsDimming(true); setTimeout(() => setIsFlipping(true), 1000); } }} 
-                         className={`relative w-full aspect-[2/3] transform-style-3d transition-all duration-[2500ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${isFlipping ? 'rotate-y-180' : 'cursor-pointer hover:scale-[1.03]'}`}>
+                  <ParticleBurst active={isFlipping} />
+                  <div className={`perspective-1000 w-full px-6 z-50 ${justDrawn ? 'animate-slide-up-in card-float' : ''}`}>
+                    <div onClick={() => { if (!isFlipping) { setIsDimming(true); setTimeout(() => setIsFlipping(true), 1000); } }}
+                      className={`relative w-full aspect-[2/3] transform-style-3d transition-all duration-[2500ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${isFlipping ? 'rotate-y-180' : 'cursor-pointer hover:scale-[1.03]'}`}>
                       <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] border-2 border-[#5c4a38] bg-[#2a1b0d] flex flex-col items-center justify-center p-1 bg-cover bg-center overflow-hidden crisp-image" style={{ backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")` }}>
                         <div className="w-full h-full border border-white/5 flex flex-col items-center justify-center bg-black/35 backdrop-blur-[1px] rounded-xl p-3 text-center">
                           <div className="w-16 h-16 bg-black/40 rounded-full flex items-center justify-center mb-3 border border-white/10"><span className="text-4xl opacity-90 drop-shadow-lg">🩸</span></div>
@@ -386,7 +997,7 @@
                         <div className="bg-white/95 text-black text-[10px] font-mono font-black text-center py-2.5 border-b-4 border-black tracking-[0.4em] z-10 uppercase">Identity Confirmed</div>
                         <div className="flex-1 flex flex-col items-end justify-end p-5 text-right bg-gradient-to-t from-black/90 via-black/30 to-transparent z-10">
                           <h3 className={`font-black text-3xl z-10 ${myCard.text} drop-shadow-[0_2px_4px_rgba(0,0,0,1)] tracking-wider uppercase`}>{myCard.role}</h3>
-                          <div className="mt-3 text-[10px] font-mono text-white/90 bg-red-900/60 px-4 py-1.5 rounded-sm border border-red-500/30 backdrop-blur-sm tracking-widest uppercase">ID: #{myCard.drawnBy?.substring(0,8)}</div>
+                          <div className="mt-3 text-[10px] font-mono text-white/90 bg-red-900/60 px-4 py-1.5 rounded-sm border border-red-500/30 backdrop-blur-sm tracking-widest uppercase">ID: #{myCard.drawnBy?.substring(0, 8)}</div>
                         </div>
                       </div>
                     </div>
@@ -439,4 +1050,5 @@
     root.render(<App />);
   </script>
 </body>
+
 </html>
