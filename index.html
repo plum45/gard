@@ -508,6 +508,12 @@
       pointer-events: none;
       animation: scanLine 2.5s linear infinite;
     }
+
+    /* ===== 3D Card Hover Utilities ===== */
+    .perspective-1000 { perspective: 1000px; }
+    .transform-style-3d { transform-style: preserve-3d; }
+    .backface-hidden { backface-visibility: hidden; }
+    .rotate-y-180 { transform: rotateY(180deg); }
   </style>
 </head>
 
@@ -552,34 +558,41 @@
       { role: 'ชาวบ้าน', count: 4, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน (ห้ามเผยตัวตน): หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
     ];
 
-    const TOTAL_CARDS = 20;
-
-    const secureRandom = () => {
-      const array = new Uint32Array(1);
-      window.crypto.getRandomValues(array);
-      return array[0] / (0xFFFFFFFF + 1);
-    };
-
-    const shuffleArray = (array) => {
-      const shuffled = [...array];
-      for (let pass = 0; pass < 3; pass++) {
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(secureRandom() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-      }
-      return shuffled;
-    };
-
-    const generateDeck = () => {
+    const generateDeck = (config = null) => {
       let deck = [];
-      const templates = shuffleArray([...ROLE_TEMPLATES]);
+      const templatesConfig = config || ROLE_TEMPLATES;
+      
+      const templatesMap = {};
+      ROLE_TEMPLATES.forEach(t => templatesMap[t.role] = t);
+
+      const templates = shuffleArray([...templatesConfig]);
       templates.forEach(template => {
+        const fullTemplate = templatesMap[template.role];
+        if(!fullTemplate) return;
+
         for (let i = 0; i < template.count; i++) {
-          deck.push({ ...template, isDrawn: false, drawnBy: null });
+          deck.push({ ...fullTemplate, isDrawn: false, drawnBy: null });
         }
       });
       return shuffleArray(deck).map((card, index) => ({ ...card, id: index }));
+    };
+
+    const playSound = (type) => {
+      try {
+        const audios = {
+          heartbeat: new Audio('https://www.soundjay.com/human/sounds/heartbeat-01a.mp3'),
+          flip: new Audio('https://actions.google.com/sounds/v1/foley/whoosh.ogg'),
+          glitch: new Audio('https://actions.google.com/sounds/v1/science_fiction/power_down.ogg')
+        };
+        if (audios[type]) {
+          audios[type].volume = 0.5;
+          audios[type].play().catch(e => {}); 
+        }
+      } catch(e) {}
+    };
+
+    const vibrate = (pattern) => {
+      try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {}
     };
 
     const BACKGROUND_IMAGE_URL = 'https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg';
@@ -662,6 +675,7 @@
 
       const [isShuffling, setIsShuffling] = useState(false);
       const [isFlipping, setIsFlipping] = useState(false);
+      const [isFullyFlipped, setIsFullyFlipped] = useState(false);
       const [isDimming, setIsDimming] = useState(false);
       const [justDrawn, setJustDrawn] = useState(false);
       const [spotlightPos, setSpotlightPos] = useState({ x: 50, y: 50 });
@@ -669,6 +683,34 @@
       const [aiInsight, setAiInsight] = useState("");
       const [isGeneratingAI, setIsGeneratingAI] = useState(false);
       const [aiError, setAiError] = useState("");
+
+      // ===== 3D Card State =====
+      const [cardTilt, setCardTilt] = useState({ rotateX: 0, rotateY: 0, scale: 1 });
+      const [isHoveringCard, setIsHoveringCard] = useState(false);
+      const cardContainerRef = useRef(null);
+
+      const handleCardMouseMove = useCallback((e) => {
+        if (!cardContainerRef.current) return;
+        if (isFlipping && !isFullyFlipped) return;
+        const rect = cardContainerRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        // Increase limits to make it more obvious (e.g., 30 degrees instead of 15)
+        const rotateX = ((y - centerY) / centerY) * -30; 
+        const rotateY = ((x - centerX) / centerX) * 30; 
+        setCardTilt({ rotateX, rotateY, scale: 1.1 });
+      }, [isFlipping, isFullyFlipped]);
+
+      const handleCardMouseLeave = useCallback(() => {
+        setIsHoveringCard(false);
+        setCardTilt({ rotateX: 0, rotateY: 0, scale: 1 });
+      }, []);
+
+      const handleCardMouseEnter = useCallback(() => {
+        if (!isFlipping || isFullyFlipped) setIsHoveringCard(true);
+      }, [isFlipping, isFullyFlipped]);
 
       // ===== NEW: ชื่อผู้เล่น, คู่มือ, โหวต, Timer =====
       const [playerName, setPlayerName] = useState('');
@@ -692,14 +734,72 @@
       const myCard = useMemo(() => gameState?.cards?.find(c => c.drawnBy === user?.uid), [gameState, user]);
       const isHost = useMemo(() => gameState?.hostUid === user?.uid, [gameState, user]);
       const players = useMemo(() => gameState?.players || {}, [gameState]);
-      const playerCount = useMemo(() => Object.keys(players).length, [players]);
+      const playerCount = useMemo(() => Object.values(players).filter(p => !p.isSpectator).length, [players]);
+      const spectatorCount = useMemo(() => Object.values(players).filter(p => p.isSpectator).length, [players]);
+      const isSpectator = useMemo(() => players[user?.uid]?.isSpectator === true, [players, user]);
       const votes = useMemo(() => gameState?.votes || {}, [gameState]);
       const voteCount = useMemo(() => Object.keys(votes).length, [votes]);
       const stats = useMemo(() => {
-        if (!gameState?.cards) return { drawn: 0, left: TOTAL_CARDS };
+        if (!gameState?.cards) return { drawn: 0, left: 0, total: 0 };
         const drawnCount = gameState.cards.filter(c => c.isDrawn).length;
-        return { drawn: drawnCount, left: TOTAL_CARDS - drawnCount };
+        const total = gameState.cards.length;
+        return { drawn: drawnCount, left: total - drawnCount, total };
       }, [gameState]);
+
+      // ===== Settings (UV, Deck) =====
+      const [uvMode, setUvMode] = useState(false);
+      const [joinAsSpectator, setJoinAsSpectator] = useState(false);
+      const [currentRoomId, setCurrentRoomId] = useState('');
+      const [inputRoomId, setInputRoomId] = useState('');
+
+      const joinRoom = useCallback(async (e) => {
+        if(e) e.preventDefault();
+        const rid = inputRoomId.trim().toUpperCase();
+        if (!rid) return;
+        setLoading(true);
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', rid);
+          const checkSnap = await getDoc(gameDocRef);
+          if (!checkSnap.exists()) {
+             await setDoc(gameDocRef, {
+               cards: [], status: 'setup', createdAt: new Date().toISOString(), version: Date.now(),
+               hostUid: user.uid, players: {}, votes: {}, timer: { isRunning: false, endTime: 0 }
+             });
+          }
+          setCurrentRoomId(rid);
+        } catch (error) { 
+          console.error('Join room error:', error);
+          showToast('ไม่สามารถเชื่อมต่อห้องได้', 'error');
+        }
+        setLoading(false);
+      }, [user, inputRoomId, showToast]);
+      const [hostDeckConfig, setHostDeckConfig] = useState([...ROLE_TEMPLATES]);
+      const totalConfiguredCards = useMemo(() => hostDeckConfig.reduce((acc, c) => acc + c.count, 0), [hostDeckConfig]);
+
+      const updateHostDeckConfig = (index, change) => {
+         const newConf = [...hostDeckConfig];
+         newConf[index].count = Math.max(0, newConf[index].count + change);
+         setHostDeckConfig(newConf);
+      };
+
+      const startGame = async () => {
+         if(!isHost || !user) return;
+         if (totalConfiguredCards < playerCount) {
+            showToast(`จำนวนการ์ด (${totalConfiguredCards}) มองไม่พอสำหรับผู้เล่น (${playerCount})`, 'error');
+            return;
+         }
+         setLoading(true);
+         try {
+            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+            const newDeck = generateDeck(hostDeckConfig);
+            await updateDoc(gameDocRef, {
+               cards: newDeck,
+               status: 'playing',
+               version: Date.now()
+            });
+         } catch(e) {}
+         setLoading(false);
+      };
 
       // ===== Timer countdown sync =====
       useEffect(() => {
@@ -719,6 +819,7 @@
       useEffect(() => {
         if (!myCard) {
           setIsFlipping(false);
+          setIsFullyFlipped(false);
           setIsDimming(false);
           setJustDrawn(false);
           setAiInsight("");
@@ -761,8 +862,8 @@
       }, []);
 
       useEffect(() => {
-        if (!user) return;
-        const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+        if (!user || !currentRoomId) return;
+        const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
         const unsubscribe = onSnapshot(gameDocRef, (docSnap) => {
           try {
             if (docSnap.exists()) {
@@ -794,7 +895,7 @@
           if (!toast) showToast("การเชื่อมต่อขัดข้อง กำลังพยายามใหม่...", "warn");
         });
         return () => unsubscribe();
-      }, [user]);
+      }, [user, currentRoomId]);
 
       useEffect(() => {
         if (introStage === 'arrival') {
@@ -806,21 +907,62 @@
         }
       }, [introStage]);
 
+      // Mouse & Particle Trail
       useEffect(() => {
+        const canvas = document.getElementById('blood-trail');
+        let ctx = null, frameId;
+        if(canvas) {
+           ctx = canvas.getContext('2d');
+           canvas.width = window.innerWidth;
+           canvas.height = window.innerHeight;
+        }
+        let particles = [];
+        
+        const resize = () => { if(canvas) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; } };
+        window.addEventListener('resize', resize);
+        
+        const addParticle = (x, y) => {
+          if(!ctx || Math.random() > 0.6) return;
+          particles.push({
+            x, y, size: Math.random() * 5 + 1.5,
+            opacity: 0.8, speedY: Math.random() * 1.5 + 0.5
+          });
+        };
+        
         const handleMove = (e) => {
           const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
           const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
           setSpotlightPos({ x: (clientX / window.innerWidth) * 100, y: (clientY / window.innerHeight) * 100 });
+          addParticle(clientX, clientY);
         };
+        
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('touchmove', handleMove, { passive: true });
-        window.addEventListener('touchstart', handleMove, { passive: true });
+        
+        const animate = () => {
+          if(!ctx) return;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          for (let i = 0; i < particles.length; i++) {
+            let p = particles[i];
+            ctx.fillStyle = `rgba(180, 0, 0, ${p.opacity})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            p.y += p.speedY;
+            p.opacity -= 0.02;
+          }
+          particles = particles.filter(p => p.opacity > 0);
+          frameId = requestAnimationFrame(animate);
+        };
+        animate();
+        
         return () => {
+          window.removeEventListener('resize', resize);
           window.removeEventListener('mousemove', handleMove);
           window.removeEventListener('touchmove', handleMove);
-          window.removeEventListener('touchstart', handleMove);
+          cancelAnimationFrame(frameId);
         };
-      }, []);
+      }, [hasEntered, nameSubmitted]);
 
       const fetchAIInsight = async (role, story) => {
         if (isGeneratingAI) return;
@@ -837,56 +979,56 @@
       };
 
       // ===== ลงทะเบียนผู้เล่น =====
-      const registerPlayer = useCallback(async (name) => {
-        if (!user || !name.trim()) return;
+      const registerPlayer = useCallback(async (nameStr) => {
+        if (!user || !nameStr.trim() || !currentRoomId) return;
         try {
-          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
           await updateDoc(gameDocRef, {
-            [`players.${user.uid}`]: { name: name.trim(), joinedAt: Date.now() }
+            [`players.${user.uid}`]: { name: nameStr.trim(), joinedAt: Date.now(), isSpectator: joinAsSpectator }
           });
           setNameSubmitted(true);
         } catch (e) { console.error('Register error:', e); showToast('ลงทะเบียนไม่สำเร็จ', 'error'); }
-      }, [user, showToast]);
+      }, [user, joinAsSpectator, showToast, currentRoomId]);
 
       // ===== Host: เริ่ม/หยุด Timer =====
       const toggleTimer = useCallback(async (durationMinutes = 5) => {
-        if (!user || !isHost) return;
+        if (!user || !isHost || !currentRoomId) return;
         try {
-          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
           if (gameState?.timer?.isRunning) {
             await updateDoc(gameDocRef, { timer: { isRunning: false, endTime: 0 } });
           } else {
             await updateDoc(gameDocRef, { timer: { isRunning: true, endTime: Date.now() + durationMinutes * 60000, duration: durationMinutes } });
           }
         } catch (e) { console.error('Timer error:', e); }
-      }, [user, isHost, gameState]);
+      }, [user, isHost, gameState, currentRoomId]);
 
       // ===== โหวต =====
       const submitVote = useCallback(async (targetName) => {
-        if (!user || !targetName) return;
+        if (!user || !targetName || !currentRoomId) return;
         try {
-          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
           await updateDoc(gameDocRef, { [`votes.${user.uid}`]: targetName });
           setMyVote(targetName);
           showToast(`โหวต "${targetName}" เรียบร้อย`, 'success');
         } catch (e) { console.error('Vote error:', e); }
-      }, [user, showToast]);
+      }, [user, showToast, currentRoomId]);
 
       // ===== Host: ล้างโหวต =====
       const clearVotes = useCallback(async () => {
-        if (!user || !isHost) return;
+        if (!user || !isHost || !currentRoomId) return;
         try {
-          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
           await updateDoc(gameDocRef, { votes: {} });
           setMyVote(null);
         } catch (e) { console.error('Clear votes error:', e); }
-      }, [user, isHost]);
+      }, [user, isHost, currentRoomId]);
 
       // ===== คืนไพ่ =====
       const returnCard = useCallback(async () => {
-        if (!user || !myCard) return;
+        if (!user || !myCard || !currentRoomId) return;
         try {
-          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
           await runTransaction(db, async (transaction) => {
             const snap = await transaction.get(gameDocRef);
             if (!snap.exists()) return;
@@ -896,23 +1038,22 @@
           });
           showToast('คืนไพ่เรียบร้อยแล้ว', 'success');
         } catch (e) { console.error('Return card error:', e); }
-      }, [user, myCard, showToast]);
+      }, [user, myCard, showToast, currentRoomId]);
 
       // ===== initRoom =====
       const initRoom = useCallback(async () => {
-        if (!user) return;
+        if (!user || !currentRoomId) return;
         try {
-          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
           const checkSnap = await getDoc(gameDocRef);
           if (checkSnap.exists()) { setLoading(false); return; }
-          const deck = generateDeck();
           await setDoc(gameDocRef, {
-            cards: deck, createdAt: new Date().toISOString(), version: Date.now(),
+            cards: [], status: 'setup', createdAt: new Date().toISOString(), version: Date.now(),
             hostUid: user.uid, players: {}, votes: {}, timer: { isRunning: false, endTime: 0 }
           });
         } catch (error) { console.error('Init room error:', error); }
         finally { setLoading(false); }
-      }, [user]);
+      }, [user, currentRoomId]);
 
       // ===== resetGame =====
       const resetGame = useCallback(async () => {
@@ -922,11 +1063,11 @@
 
         setLoading(true);
         try {
-          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
-          const deck = generateDeck();
-          await setDoc(gameDocRef, {
-            cards: deck,
-            createdAt: new Date().toISOString(),
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+          await updateDoc(gameDocRef, {
+            cards: [],
+            votes: {},
+            status: 'setup',
             version: Date.now()
           });
         } catch (error) {
@@ -936,7 +1077,7 @@
           setLoading(false);
           setTimeout(() => { resetLockRef.current = false; }, 3000);
         }
-      }, [user, showToast]);
+      }, [user, showToast, currentRoomId]);
 
       // ===== handleDrawWithAnimation: เพิ่ม retry + lock ที่แข็งแกร่งขึ้น =====
       const handleDrawWithAnimation = useCallback(async () => {
@@ -951,7 +1092,7 @@
 
         while (retryCount < MAX_RETRIES && !success) {
           try {
-            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room-01');
+            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
 
             await runTransaction(db, async (transaction) => {
               const docSnap = await transaction.get(gameDocRef);
@@ -1009,6 +1150,8 @@
         }
 
         if (success) {
+          playSound('heartbeat');
+          vibrate([100, 50, 100, 50, 200]);
           // เมื่อจองการ์ดในระบบเสร็จสมบูรณ์ ค่อยแสดงอนิเมชันสับไพ่
           shuffleTimerRef.current = setTimeout(() => {
             setIsShuffling(false);
@@ -1021,7 +1164,7 @@
           setIsShuffling(false);
           drawLockRef.current = false;
         }
-      }, [user, myCard, showToast]);
+      }, [user, myCard, showToast, currentRoomId]);
 
       // ===== หน้า Intro =====
       if (!hasEntered) {
@@ -1061,6 +1204,35 @@
         );
       }
 
+      // ===== หน้าเริ่มเกม กรอกห้อง =====
+      if (hasEntered && !currentRoomId) {
+        return (
+          <div className="min-h-screen relative flex flex-col items-center justify-center bg-black p-4 z-[99]">
+            <canvas id="blood-trail" className="fixed inset-0 pointer-events-none z-[100]" />
+            <BloodDrips count={2} />
+            <FogOverlay />
+            <div className="relative z-[150] bg-black/90 border border-red-900/50 rounded-2xl p-8 max-w-md w-full animate-slide-up-in shadow-[0_0_60px_rgba(220,38,38,0.15)] mt-16 pointer-events-auto">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center border border-red-500/30 glow-pulse shadow-[0_0_30px_#a30000]">
+                📁
+              </div>
+              <h2 className="text-2xl font-black text-red-600 text-center mt-4 mb-2 tracking-widest uppercase">Access Archive</h2>
+              <p className="text-gray-500 text-center text-xs font-mono mb-8 tracking-widest">ENTER ROOM CODE TO PROCEED</p>
+              
+              <form onSubmit={joinRoom}>
+                <input type="text" value={inputRoomId} onChange={e => setInputRoomId(e.target.value.replace(/[^A-Za-z0-9-]/g, ''))}
+                  placeholder="EX: ROOM-123" required maxLength={15}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 text-white text-center text-lg font-bold tracking-wider placeholder-gray-600 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all uppercase" />
+                <button type="submit" disabled={!inputRoomId.trim() || loading}
+                  className="w-full mt-5 bg-red-900 hover:bg-red-700 disabled:bg-gray-800 disabled:opacity-50 text-white py-4 rounded-xl font-black tracking-[0.3em] uppercase transition-all glow-pulse">
+                  {loading ? 'CONNECTING...' : 'ACCESS'}
+                </button>
+              </form>
+            </div>
+            {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+          </div>
+        );
+      }
+
       // ===== หน้าตั้งชื่อผู้เล่น =====
       if (!nameSubmitted) {
         return (
@@ -1069,17 +1241,69 @@
             <FogOverlay />
             <div className="relative z-20 bg-black/90 border border-red-900/50 rounded-2xl p-8 max-w-md w-full animate-slide-up-in shadow-[0_0_60px_rgba(220,38,38,0.15)]">
               <h2 className="text-2xl font-black text-red-600 text-center mb-2 tracking-widest uppercase">🩸 Agent Registration</h2>
-              <p className="text-gray-500 text-center text-xs font-mono mb-8 tracking-widest">IDENTITY VERIFICATION REQUIRED</p>
+              <p className="text-gray-500 text-center text-xs font-mono mb-6 tracking-widest">IDENTITY VERIFICATION REQUIRED</p>
+              
+              <div className="flex gap-2 p-1 bg-black/60 rounded-xl mb-6">
+                <button onClick={() => setJoinAsSpectator(false)} className={`flex-1 py-3 text-xs font-bold tracking-widest rounded-lg transition-all uppercase ${!joinAsSpectator ? 'bg-red-900 shadow-md text-white' : 'text-gray-500 hover:bg-white/5'}`}>🕵️‍♂️ Agent</button>
+                <button onClick={() => setJoinAsSpectator(true)} className={`flex-1 py-3 text-xs font-bold tracking-widest rounded-lg transition-all uppercase ${joinAsSpectator ? 'bg-blue-900 border border-blue-500/30 text-white' : 'text-gray-500 hover:bg-white/5'}`}>👁️‍🗨️ Spectator</button>
+              </div>
+
               <input type="text" value={playerName} onChange={e => setPlayerName(e.target.value)} onKeyDown={e => e.key === 'Enter' && playerName.trim() && registerPlayer(playerName)}
                 placeholder="ใส่ชื่อ / ฉายา ของคุณ" maxLength={20}
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-5 py-4 text-white text-center text-lg font-bold tracking-wider placeholder-gray-600 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all" />
+                className={`w-full bg-gray-900 border ${joinAsSpectator ? 'border-blue-900/50 focus:border-blue-500 focus:ring-blue-500' : 'border-red-900/50 focus:border-red-600 focus:ring-red-600'} rounded-xl px-5 py-4 text-white text-center text-lg font-bold tracking-wider placeholder-gray-600 focus:outline-none focus:ring-1 transition-all`} />
               <button onClick={() => registerPlayer(playerName)} disabled={!playerName.trim()}
-                className="w-full mt-5 bg-red-900 hover:bg-red-700 disabled:bg-gray-800 disabled:opacity-50 text-white py-4 rounded-xl font-black tracking-[0.3em] uppercase transition-all glow-pulse">
+                className={`w-full mt-5 ${joinAsSpectator ? 'bg-blue-900 hover:bg-blue-700' : 'bg-red-900 hover:bg-red-700'} disabled:bg-gray-800 disabled:opacity-50 text-white py-4 rounded-xl font-black tracking-[0.3em] uppercase transition-all glow-pulse`}>
                 Confirm Identity
               </button>
-              <p className="text-gray-600 text-center text-[10px] font-mono mt-4 tracking-widest">AGENTS ONLINE: {playerCount}</p>
+              <p className="text-gray-600 text-center text-[10px] font-mono mt-4 tracking-widest uppercase">AGENTS ONLINE: {playerCount} {spectatorCount > 0 && `| SPECTATORS: ${spectatorCount}`}</p>
             </div>
             {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+          </div>
+        );
+      }
+
+      // ===== หน้าจัดชุดไพ่ (Setup Phase) =====
+      if (gameState?.status === 'setup') {
+        return (
+          <div className="min-h-screen relative flex flex-col items-center justify-center bg-black p-4 z-0">
+             <canvas id="blood-trail" className="fixed inset-0 pointer-events-none z-[100]" />
+             <BloodDrips count={2} />
+             <FogOverlay />
+             <div className="relative z-20 bg-black/90 border border-red-900/50 rounded-2xl p-6 md:p-8 max-w-xl w-full shadow-[0_0_60px_rgba(220,38,38,0.15)] max-h-[90vh] overflow-y-auto">
+               <h2 className="text-3xl font-black text-red-600 text-center mb-2 tracking-widest uppercase">Deck Configuration</h2>
+               <p className="text-gray-500 text-center text-xs font-mono mb-6 tracking-widest">
+                 AGENTS ONLINE: {playerCount} / CARDS TO PLAY: {totalConfiguredCards}
+               </p>
+
+               {isHost ? (
+                  <>
+                     <div className="space-y-3 mb-8">
+                       {hostDeckConfig.map((role, idx) => (
+                          <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border border-white/5 bg-gray-900/50`}>
+                             <div className="flex-1">
+                                <span className={`text-sm font-bold block ${ROLE_TEMPLATES[idx].text}`}>{role.role}</span>
+                             </div>
+                             <div className="flex items-center gap-4 bg-black/60 rounded-lg p-1 border border-gray-800">
+                               <button onClick={() => updateHostDeckConfig(idx, -1)} className="w-8 h-8 rounded-md bg-red-950 hover:bg-red-900 text-white font-black transition-colors">-</button>
+                               <span className="w-6 text-center font-mono text-lg">{role.count}</span>
+                               <button onClick={() => updateHostDeckConfig(idx, 1)} className="w-8 h-8 rounded-md bg-emerald-950 hover:bg-emerald-900 text-white font-black transition-colors">+</button>
+                             </div>
+                          </div>
+                       ))}
+                     </div>
+                     <button onClick={startGame} disabled={loading}
+                        className="w-full bg-red-900 hover:bg-red-700 disabled:bg-gray-800 disabled:opacity-50 text-white py-4 rounded-xl font-black tracking-[0.3em] uppercase transition-all glow-pulse">
+                        {loading ? 'INITIALIZING...' : 'START INVESTIGATION'}
+                     </button>
+                  </>
+               ) : (
+                  <div className="text-center py-10">
+                     <div className="w-16 h-16 mx-auto mb-6 border-4 border-red-900 border-t-red-500 rounded-full animate-spin"></div>
+                     <h3 className="text-xl font-bold text-gray-400 font-mono">Waiting for Host to prepare the archive...</h3>
+                  </div>
+               )}
+             </div>
+             {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
           </div>
         );
       }
@@ -1087,6 +1311,11 @@
       return (
         <div className="min-h-screen relative font-sans p-4 md:p-8 flex flex-col items-center"
           style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', backgroundAttachment: 'fixed' }}>
+          
+          <canvas id="blood-trail" className="fixed inset-0 pointer-events-none z-10" />
+
+          {/* UV Light Overlay System */}
+          <div className={`fixed inset-0 pointer-events-none z-[35] mix-blend-screen transition-opacity duration-500 ${uvMode ? 'opacity-100 bg-[#54009955]' : 'opacity-0'}`}></div>
 
           <BloodDrips count={5} />
           <FogOverlay />
@@ -1137,9 +1366,10 @@
               <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
                 <div className="text-center sm:text-left">
                   <h2 className="text-gray-100 text-lg font-black tracking-widest flex items-center gap-2"><span className="text-red-600 animate-pulse">🩸</span> CASE STATUS</h2>
-                  <p className="text-gray-400 text-xs font-mono mt-1 uppercase">Cards: {stats.drawn}/{TOTAL_CARDS} | 👥 Agents: {playerCount} {isHost && <span className="text-amber-400">| ⭐ HOST</span>}</p>
+                  <p className="text-gray-400 text-xs font-mono mt-1 uppercase">Cards: {stats.drawn}/{stats.total} | 👥 Agents: {playerCount} {spectatorCount > 0 && `| 👁️‍🗨️ Specs: ${spectatorCount}`} {isSpectator && <span className="text-blue-400">| 👁️‍🗨️ YOU</span>} {isHost && <span className="text-amber-400">| ⭐ HOST</span>}</p>
                 </div>
                 <div className="flex gap-2 flex-wrap justify-center">
+                  <button onClick={() => { setUvMode(!uvMode); vibrate(50); }} className={`text-[10px] font-bold tracking-widest px-3 py-2 rounded-full uppercase transition-colors ${uvMode ? 'bg-[#540099] text-white shadow-[0_0_15px_#540099]' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>🔦 UV</button>
                   <button onClick={() => setShowGuide(true)} className="text-[10px] font-bold tracking-widest bg-blue-950 hover:bg-blue-900 border border-blue-800 px-3 py-2 rounded-full uppercase">📋 Guide</button>
                   <button onClick={() => setShowVotePanel(true)} className="text-[10px] font-bold tracking-widest bg-purple-950 hover:bg-purple-900 border border-purple-800 px-3 py-2 rounded-full uppercase">🗳️ Vote {voteCount > 0 && `(${voteCount})`}</button>
                   {myCard && <button onClick={returnCard} className="text-[10px] font-bold tracking-widest bg-gray-800 hover:bg-gray-700 border border-gray-600 px-3 py-2 rounded-full uppercase">↩️ Return</button>}
@@ -1171,7 +1401,25 @@
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center py-6">
-              {(!myCard || isShuffling) ? (
+              {isSpectator ? (
+                <div className="flex flex-col items-center p-8 bg-black/40 border border-white/5 rounded-3xl mt-12 w-full max-w-sm backdrop-blur-sm shadow-2xl animate-slide-up-in">
+                  <div className="w-20 h-20 bg-blue-900/40 rounded-full flex items-center justify-center mb-6 border border-blue-500/30 glow-pulse">
+                    <span className="text-4xl text-blue-300">👁️‍🗨️</span>
+                  </div>
+                  <h3 className="text-2xl font-black font-mono tracking-widest text-[#aaccff] mb-2 uppercase drop-shadow-[0_0_10px_rgba(100,150,255,0.5)]">Spectator</h3>
+                  <p className="text-xs text-blue-200/50 text-center uppercase tracking-wider mb-8">Monitoring investigation...<br/>Classified clearance.</p>
+                  
+                  <div className="w-full bg-black/60 rounded-xl p-5 border border-gray-800">
+                    <div className="flex justify-between items-center text-xs text-gray-400 font-mono tracking-widest mb-3">
+                      <span>DRAWN CARDS</span>
+                      <span className="text-red-400 font-bold">{stats.drawn}/{stats.total}</span>
+                    </div>
+                    <div className="flex gap-1 overflow-hidden h-3 bg-gray-900 rounded-full border border-white/5">
+                      <div className="bg-gradient-to-r from-red-900 to-red-600 h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(255,0,0,0.5)]" style={{ width: `${stats.total > 0 ? (stats.drawn / stats.total) * 100 : 0}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+              ) : (!myCard || isShuffling) ? (
                 <div className="flex flex-col items-center">
                   {isShuffling ? (
                     <div className="relative w-48 h-64 mb-10 flex items-center justify-center">
@@ -1186,7 +1434,7 @@
                       <div className="scan-line"></div>
                     </div>
                   )}
-                  <button onClick={handleDrawWithAnimation} disabled={stats.left === 0 || isShuffling || drawLockRef.current} className="group relative bg-red-900 hover:bg-red-700 disabled:bg-gray-900 disabled:opacity-60 text-white px-10 py-6 rounded-3xl text-2xl font-black tracking-[0.2em] shadow-[0_10px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 uppercase flex flex-col items-center disabled:cursor-not-allowed disabled:active:translate-y-0 glow-pulse">
+                  <button onClick={handleDrawWithAnimation} disabled={stats.left === 0 || isShuffling || drawLockRef.current} className="group relative bg-red-900 hover:bg-red-700 disabled:bg-gray-900 disabled:opacity-60 text-white px-10 py-6 rounded-3xl text-2xl font-black tracking-[0.2em] shadow-[0_10px_0_#4a0000] active:translate-y-2 transition-all border border-red-500 uppercase flex flex-col items-center disabled:cursor-not-allowed disabled:active:translate-y-0 glow-pulse z-40">
                     <span>{isShuffling ? 'In Progress...' : 'Scan Blood'}</span>
                     <span className="text-[10px] font-mono tracking-widest text-red-300 mt-2">(Biometric Scan)</span>
                   </button>
@@ -1194,17 +1442,70 @@
               ) : (
                 <div className="flex flex-col items-center w-full max-w-sm mx-auto relative">
                   <ParticleBurst active={isFlipping} />
-                  <div className={`perspective-1000 w-full px-6 z-50 ${justDrawn ? 'animate-slide-up-in card-float' : ''}`}>
-                    <div onClick={() => { if (!isFlipping) { setIsDimming(true); setTimeout(() => setIsFlipping(true), 1000); } }}
-                      className={`relative w-full aspect-[2/3] transform-style-3d transition-all duration-[2500ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${isFlipping ? 'rotate-y-180' : 'cursor-pointer hover:scale-[1.03]'}`}>
-                      <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] border-2 border-[#5c4a38] bg-[#2a1b0d] flex flex-col items-center justify-center p-1 bg-cover bg-center overflow-hidden crisp-image" style={{ backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")` }}>
+                  <div className={`perspective-1000 w-full px-6 z-50 ${justDrawn && !isHoveringCard ? 'animate-slide-up-in card-float' : ''}`}>
+                    <div 
+                      ref={cardContainerRef}
+                      onMouseMove={handleCardMouseMove}
+                      onMouseLeave={handleCardMouseLeave}
+                      onMouseEnter={handleCardMouseEnter}
+                      onClick={() => { 
+                        if (!isFlipping) { 
+                          playSound('flip'); vibrate([50, 50, 100]);
+                          setIsDimming(true); 
+                          setTimeout(() => { playSound('glitch'); setIsFlipping(true); }, 1000); 
+                          setTimeout(() => setIsFullyFlipped(true), 3500);
+                          setCardTilt({ rotateX: 0, rotateY: 0, scale: 1 }); 
+                        } 
+                      }}
+                      style={{
+                        transform: (isFlipping && !isFullyFlipped) 
+                           ? 'rotateY(180deg)' 
+                           : (isFullyFlipped 
+                              ? `rotateX(${-cardTilt.rotateX}deg) rotateY(${180 + cardTilt.rotateY}deg) scale(${cardTilt.scale})` 
+                              : `rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg) scale(${cardTilt.scale})`),
+                        transition: (isFlipping && !isFullyFlipped) 
+                           ? 'transform 2.5s cubic-bezier(0.4, 0, 0.2, 1)' 
+                           : (isHoveringCard ? 'transform 0.1s ease-out' : 'transform 0.5s ease-out'),
+                         boxShadow: isHoveringCard && (!isFlipping || isFullyFlipped) ? `${-cardTilt.rotateY}px ${cardTilt.rotateX}px 40px rgba(220, 38, 38, 0.4)` : 'none'
+                      }}
+                      className={`relative w-full aspect-[2/3] transform-style-3d ${(!isFlipping || isFullyFlipped) ? 'cursor-pointer' : ''}`}>
+                      
+                      {/* Glare effect - Back face (Hidden in UV) */}
+                      {!isFullyFlipped && isHoveringCard && !uvMode && (
+                         <div 
+                           className="absolute inset-0 pointer-events-none rounded-2xl z-[60]"
+                           style={{
+                              background: `radial-gradient(circle at ${(cardTilt.rotateY / 30 + 1) * 50}% ${(cardTilt.rotateX / -30 + 1) * 50}%, rgba(255,255,255,0.3) 0%, transparent 70%)`,
+                              transition: 'background 0.1s ease-out'
+                           }}
+                         />
+                      )}
+
+                      <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] border-2 border-[#5c4a38] bg-[#2a1b0d] flex flex-col items-center justify-center p-1 bg-cover bg-center overflow-hidden crisp-image transform-style-3d transition-colors" style={{ backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")`, filter: uvMode ? 'hue-rotate(270deg) contrast(1.5)' : 'none' }}>
+                        
+                        {/* UV Light hidden fingerprint */}
+                        {uvMode && (
+                           <div className="absolute top-[20%] right-[30%] opacity-40 text-purple-300 text-6xl rotate-45 pointer-events-none">👆</div>
+                        )}
+
                         <div className="w-full h-full border border-white/5 flex flex-col items-center justify-center bg-black/35 backdrop-blur-[1px] rounded-xl p-3 text-center">
                           <div className="w-16 h-16 bg-black/40 rounded-full flex items-center justify-center mb-3 border border-white/10"><span className="text-4xl opacity-90 drop-shadow-lg">🩸</span></div>
                           <span className="text-base font-mono text-white font-black tracking-[0.3em] uppercase">Top Secret</span>
                           {!isFlipping && !isDimming && <span className="mt-10 bg-red-600/80 text-white px-5 py-1.5 rounded-full text-[10px] font-bold animate-pulse border border-white/20 tracking-[0.2em] uppercase text-center">Tap to Reveal</span>}
                         </div>
                       </div>
-                      <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_60px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden crisp-image ${myCard.color} border-[#0a0a0a] bg-cover bg-center`} style={{ backgroundImage: `url("${myCard.image}")` }}>
+                      <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_60px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden crisp-image ${myCard.color} border-[#0a0a0a] bg-cover bg-center transform-style-3d`} style={{ backgroundImage: `url("${myCard.image}")` }}>
+                        {/* Glare effect - Front face */}
+                        {isFullyFlipped && isHoveringCard && (
+                           <div 
+                             className="absolute inset-0 pointer-events-none z-[60]"
+                             style={{
+                                // Invert rotateY for front face because local X axis is flipped by rotateY(180)
+                                background: `radial-gradient(circle at ${(-cardTilt.rotateY / 30 + 1) * 50}% ${(cardTilt.rotateX / -30 + 1) * 50}%, rgba(255,255,255,0.2) 0%, transparent 70%)`,
+                                transition: 'background 0.1s ease-out'
+                             }}
+                           />
+                        )}
                         <div className="bg-white/95 text-black text-[10px] font-mono font-black text-center py-2.5 border-b-4 border-black tracking-[0.4em] z-10 uppercase">Identity Confirmed</div>
                         <div className="flex-1 flex flex-col items-end justify-end p-5 text-right bg-gradient-to-t from-black/90 via-black/30 to-transparent z-10">
                           <h3 className={`font-black text-3xl z-10 ${myCard.text} drop-shadow-[0_2px_4px_rgba(0,0,0,1)] tracking-wider uppercase`}>{myCard.role}</h3>
