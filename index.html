@@ -510,10 +510,21 @@
     }
 
     /* ===== 3D Card Hover Utilities ===== */
-    .perspective-1000 { perspective: 1000px; }
-    .transform-style-3d { transform-style: preserve-3d; }
-    .backface-hidden { backface-visibility: hidden; }
-    .rotate-y-180 { transform: rotateY(180deg); }
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+
+    .transform-style-3d {
+      transform-style: preserve-3d;
+    }
+
+    .backface-hidden {
+      backface-visibility: hidden;
+    }
+
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
   </style>
 </head>
 
@@ -570,14 +581,14 @@
     const generateDeck = (config = null) => {
       let deck = [];
       const templatesConfig = config || ROLE_TEMPLATES;
-      
+
       const templatesMap = {};
       ROLE_TEMPLATES.forEach(t => templatesMap[t.role] = t);
 
       const templates = shuffleArray([...templatesConfig]);
       templates.forEach(template => {
         const fullTemplate = templatesMap[template.role];
-        if(!fullTemplate) return;
+        if (!fullTemplate) return;
 
         for (let i = 0; i < template.count; i++) {
           deck.push({ ...fullTemplate, isDrawn: false, drawnBy: null });
@@ -595,13 +606,13 @@
         };
         if (audios[type]) {
           audios[type].volume = 0.5;
-          audios[type].play().catch(e => {}); 
+          audios[type].play().catch(e => { });
         }
-      } catch(e) {}
+      } catch (e) { }
     };
 
     const vibrate = (pattern) => {
-      try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e) {}
+      try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { }
     };
 
     const BACKGROUND_IMAGE_URL = 'https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg';
@@ -707,8 +718,8 @@
         const centerX = rect.width / 2;
         const centerY = rect.height / 2;
         // Increase limits to make it more obvious (e.g., 30 degrees instead of 15)
-        const rotateX = ((y - centerY) / centerY) * -30; 
-        const rotateY = ((x - centerX) / centerX) * 30; 
+        const rotateX = ((y - centerY) / centerY) * -30;
+        const rotateY = ((x - centerX) / centerX) * 30;
         setCardTilt({ rotateX, rotateY, scale: 1.1 });
       }, [isFlipping, isFullyFlipped]);
 
@@ -725,6 +736,7 @@
       const [playerName, setPlayerName] = useState('');
       const [nameSubmitted, setNameSubmitted] = useState(false);
       const [showGuide, setShowGuide] = useState(false);
+      const [showRules, setShowRules] = useState(false);
       const [timerLeft, setTimerLeft] = useState(0);
       const [showVotePanel, setShowVotePanel] = useState(false);
       const [myVote, setMyVote] = useState(null);
@@ -762,7 +774,7 @@
       const [inputRoomId, setInputRoomId] = useState('');
 
       const joinRoom = useCallback(async (e) => {
-        if(e) e.preventDefault();
+        if (e) e.preventDefault();
         const rid = inputRoomId.trim().toUpperCase();
         if (!rid) return;
         setLoading(true);
@@ -770,13 +782,13 @@
           const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', rid);
           const checkSnap = await getDoc(gameDocRef);
           if (!checkSnap.exists()) {
-             await setDoc(gameDocRef, {
-               cards: [], status: 'setup', createdAt: new Date().toISOString(), version: Date.now(),
-               hostUid: user.uid, players: {}, votes: {}, timer: { isRunning: false, endTime: 0 }
-             });
+            await setDoc(gameDocRef, {
+              cards: [], status: 'setup', createdAt: new Date().toISOString(), version: Date.now(),
+              hostUid: user.uid, players: {}, votes: {}, timer: { isRunning: false, endTime: 0 }
+            });
           }
           setCurrentRoomId(rid);
-        } catch (error) { 
+        } catch (error) {
           console.error('Join room error:', error);
           showToast('ไม่สามารถเชื่อมต่อห้องได้', 'error');
         }
@@ -786,31 +798,31 @@
       const totalConfiguredCards = useMemo(() => hostDeckConfig.reduce((acc, c) => acc + c.count, 0), [hostDeckConfig]);
 
       const updateHostDeckConfig = (index, change) => {
-         const newConf = [...hostDeckConfig];
-         newConf[index].count = Math.max(0, newConf[index].count + change);
-         setHostDeckConfig(newConf);
+        const newConf = [...hostDeckConfig];
+        newConf[index].count = Math.max(0, newConf[index].count + change);
+        setHostDeckConfig(newConf);
       };
 
       const startGame = async () => {
-         if(!isHost || !user) return;
-         if (totalConfiguredCards < playerCount) {
-            showToast(`จำนวนการ์ด (${totalConfiguredCards}) มองไม่พอสำหรับผู้เล่น (${playerCount})`, 'error');
-            return;
-         }
-         setLoading(true);
-         try {
-            const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
-            const newDeck = generateDeck(hostDeckConfig);
-            await updateDoc(gameDocRef, {
-               cards: newDeck,
-               status: 'playing',
-               version: Date.now()
-            });
-         } catch(e) {
-            console.error('Start game error:', e);
-            showToast('เริ่มเกมไม่สำเร็จ: ' + e.message, 'error');
-         }
-         setLoading(false);
+        if (!isHost || !user) return;
+        if (totalConfiguredCards < playerCount) {
+          showToast(`จำนวนการ์ด (${totalConfiguredCards}) มองไม่พอสำหรับผู้เล่น (${playerCount})`, 'error');
+          return;
+        }
+        setLoading(true);
+        try {
+          const gameDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', currentRoomId);
+          const newDeck = generateDeck(hostDeckConfig);
+          await updateDoc(gameDocRef, {
+            cards: newDeck,
+            status: 'playing',
+            version: Date.now()
+          });
+        } catch (e) {
+          console.error('Start game error:', e);
+          showToast('เริ่มเกมไม่สำเร็จ: ' + e.message, 'error');
+        }
+        setLoading(false);
       };
 
       // ===== Timer countdown sync =====
@@ -928,36 +940,36 @@
       useEffect(() => {
         const canvas = document.getElementById('blood-trail');
         let ctx = null, frameId;
-        if(canvas) {
-           ctx = canvas.getContext('2d');
-           canvas.width = window.innerWidth;
-           canvas.height = window.innerHeight;
+        if (canvas) {
+          ctx = canvas.getContext('2d');
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
         }
         let particles = [];
-        
-        const resize = () => { if(canvas) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; } };
+
+        const resize = () => { if (canvas) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; } };
         window.addEventListener('resize', resize);
-        
+
         const addParticle = (x, y) => {
-          if(!ctx || Math.random() > 0.6) return;
+          if (!ctx || Math.random() > 0.6) return;
           particles.push({
             x, y, size: Math.random() * 5 + 1.5,
             opacity: 0.8, speedY: Math.random() * 1.5 + 0.5
           });
         };
-        
+
         const handleMove = (e) => {
           const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
           const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
           setSpotlightPos({ x: (clientX / window.innerWidth) * 100, y: (clientY / window.innerHeight) * 100 });
           addParticle(clientX, clientY);
         };
-        
+
         window.addEventListener('mousemove', handleMove);
         window.addEventListener('touchmove', handleMove, { passive: true });
-        
+
         const animate = () => {
-          if(!ctx) return;
+          if (!ctx) return;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           for (let i = 0; i < particles.length; i++) {
             let p = particles[i];
@@ -972,7 +984,7 @@
           frameId = requestAnimationFrame(animate);
         };
         animate();
-        
+
         return () => {
           window.removeEventListener('resize', resize);
           window.removeEventListener('mousemove', handleMove);
@@ -1234,7 +1246,7 @@
               </div>
               <h2 className="text-2xl font-black text-red-600 text-center mt-4 mb-2 tracking-widest uppercase">Access Archive</h2>
               <p className="text-gray-500 text-center text-xs font-mono mb-8 tracking-widest">ENTER ROOM CODE TO PROCEED</p>
-              
+
               <form onSubmit={joinRoom}>
                 <input type="text" value={inputRoomId} onChange={e => setInputRoomId(e.target.value.replace(/[^A-Za-z0-9-]/g, ''))}
                   placeholder="EX: ROOM-123" required maxLength={15}
@@ -1259,7 +1271,7 @@
             <div className="relative z-20 bg-black/90 border border-red-900/50 rounded-2xl p-8 max-w-md w-full animate-slide-up-in shadow-[0_0_60px_rgba(220,38,38,0.15)]">
               <h2 className="text-2xl font-black text-red-600 text-center mb-2 tracking-widest uppercase">🩸 Agent Registration</h2>
               <p className="text-gray-500 text-center text-xs font-mono mb-6 tracking-widest">IDENTITY VERIFICATION REQUIRED</p>
-              
+
               <div className="flex gap-2 p-1 bg-black/60 rounded-xl mb-6">
                 <button onClick={() => setJoinAsSpectator(false)} className={`flex-1 py-3 text-xs font-bold tracking-widest rounded-lg transition-all uppercase ${!joinAsSpectator ? 'bg-red-900 shadow-md text-white' : 'text-gray-500 hover:bg-white/5'}`}>🕵️‍♂️ Agent</button>
                 <button onClick={() => setJoinAsSpectator(true)} className={`flex-1 py-3 text-xs font-bold tracking-widest rounded-lg transition-all uppercase ${joinAsSpectator ? 'bg-blue-900 border border-blue-500/30 text-white' : 'text-gray-500 hover:bg-white/5'}`}>👁️‍🗨️ Spectator</button>
@@ -1283,44 +1295,44 @@
       if (gameState?.status === 'setup') {
         return (
           <div className="min-h-screen relative flex flex-col items-center justify-center bg-black p-4 z-0">
-             <canvas id="blood-trail" className="fixed inset-0 pointer-events-none z-[100]" />
-             <BloodDrips count={2} />
-             <FogOverlay />
-             <div className="relative z-20 bg-black/90 border border-red-900/50 rounded-2xl p-6 md:p-8 max-w-xl w-full shadow-[0_0_60px_rgba(220,38,38,0.15)] max-h-[90vh] overflow-y-auto">
-               <h2 className="text-3xl font-black text-red-600 text-center mb-2 tracking-widest uppercase">Deck Configuration</h2>
-               <p className="text-gray-500 text-center text-xs font-mono mb-6 tracking-widest">
-                 AGENTS ONLINE: {playerCount} / CARDS TO PLAY: {totalConfiguredCards}
-               </p>
+            <canvas id="blood-trail" className="fixed inset-0 pointer-events-none z-[100]" />
+            <BloodDrips count={2} />
+            <FogOverlay />
+            <div className="relative z-20 bg-black/90 border border-red-900/50 rounded-2xl p-6 md:p-8 max-w-xl w-full shadow-[0_0_60px_rgba(220,38,38,0.15)] max-h-[90vh] overflow-y-auto">
+              <h2 className="text-3xl font-black text-red-600 text-center mb-2 tracking-widest uppercase">Deck Configuration</h2>
+              <p className="text-gray-500 text-center text-xs font-mono mb-6 tracking-widest">
+                AGENTS ONLINE: {playerCount} / CARDS TO PLAY: {totalConfiguredCards}
+              </p>
 
-               {isHost ? (
-                  <>
-                     <div className="space-y-3 mb-8">
-                       {hostDeckConfig.map((role, idx) => (
-                          <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border border-white/5 bg-gray-900/50`}>
-                             <div className="flex-1">
-                                <span className={`text-sm font-bold block ${ROLE_TEMPLATES[idx].text}`}>{role.role}</span>
-                             </div>
-                             <div className="flex items-center gap-4 bg-black/60 rounded-lg p-1 border border-gray-800">
-                               <button onClick={() => updateHostDeckConfig(idx, -1)} className="w-8 h-8 rounded-md bg-red-950 hover:bg-red-900 text-white font-black transition-colors">-</button>
-                               <span className="w-6 text-center font-mono text-lg">{role.count}</span>
-                               <button onClick={() => updateHostDeckConfig(idx, 1)} className="w-8 h-8 rounded-md bg-emerald-950 hover:bg-emerald-900 text-white font-black transition-colors">+</button>
-                             </div>
-                          </div>
-                       ))}
-                     </div>
-                     <button onClick={startGame} disabled={loading}
-                        className="w-full bg-red-900 hover:bg-red-700 disabled:bg-gray-800 disabled:opacity-50 text-white py-4 rounded-xl font-black tracking-[0.3em] uppercase transition-all glow-pulse">
-                        {loading ? 'INITIALIZING...' : 'START INVESTIGATION'}
-                     </button>
-                  </>
-               ) : (
-                  <div className="text-center py-10">
-                     <div className="w-16 h-16 mx-auto mb-6 border-4 border-red-900 border-t-red-500 rounded-full animate-spin"></div>
-                     <h3 className="text-xl font-bold text-gray-400 font-mono">Waiting for Host to prepare the archive...</h3>
+              {isHost ? (
+                <>
+                  <div className="space-y-3 mb-8">
+                    {hostDeckConfig.map((role, idx) => (
+                      <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border border-white/5 bg-gray-900/50`}>
+                        <div className="flex-1">
+                          <span className={`text-sm font-bold block ${ROLE_TEMPLATES[idx].text}`}>{role.role}</span>
+                        </div>
+                        <div className="flex items-center gap-4 bg-black/60 rounded-lg p-1 border border-gray-800">
+                          <button onClick={() => updateHostDeckConfig(idx, -1)} className="w-8 h-8 rounded-md bg-red-950 hover:bg-red-900 text-white font-black transition-colors">-</button>
+                          <span className="w-6 text-center font-mono text-lg">{role.count}</span>
+                          <button onClick={() => updateHostDeckConfig(idx, 1)} className="w-8 h-8 rounded-md bg-emerald-950 hover:bg-emerald-900 text-white font-black transition-colors">+</button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-               )}
-             </div>
-             {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+                  <button onClick={startGame} disabled={loading}
+                    className="w-full bg-red-900 hover:bg-red-700 disabled:bg-gray-800 disabled:opacity-50 text-white py-4 rounded-xl font-black tracking-[0.3em] uppercase transition-all glow-pulse">
+                    {loading ? 'INITIALIZING...' : 'START INVESTIGATION'}
+                  </button>
+                </>
+              ) : (
+                <div className="text-center py-10">
+                  <div className="w-16 h-16 mx-auto mb-6 border-4 border-red-900 border-t-red-500 rounded-full animate-spin"></div>
+                  <h3 className="text-xl font-bold text-gray-400 font-mono">Waiting for Host to prepare the archive...</h3>
+                </div>
+              )}
+            </div>
+            {toast && <Toast key={toast.key} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
           </div>
         );
       }
@@ -1328,7 +1340,7 @@
       return (
         <div className="min-h-screen relative font-sans p-4 md:p-8 flex flex-col items-center"
           style={{ backgroundImage: `url("https://i.postimg.cc/XJkQcpnX/freepik_the_style_is_rich_with_textured_brushstrokes_deep_40002.jpg")`, backgroundSize: 'cover', backgroundAttachment: 'fixed' }}>
-          
+
           <canvas id="blood-trail" className="fixed inset-0 pointer-events-none z-10" />
 
           {/* UV Light Overlay System */}
@@ -1355,6 +1367,72 @@
                   </div>
                 ))}
                 <button onClick={() => setShowGuide(false)} className="w-full mt-4 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-bold tracking-widest uppercase text-sm">Close</button>
+              </div>
+            </div>
+          )}
+
+          {/* ===== กติกาเกม Modal ===== */}
+          {showRules && (
+            <div className="fixed inset-0 z-[160] bg-black/80 flex items-center justify-center p-2 sm:p-4 animate-fadeIn" onClick={() => setShowRules(false)}>
+              <div className="bg-[#050505] border border-red-900/30 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-5 sm:p-8 text-sm text-gray-300 font-serif leading-relaxed shadow-[0_0_40px_rgba(220,38,38,0.1)]" onClick={e => e.stopPropagation()}>
+                <h3 className="text-2xl font-black text-red-600 tracking-widest text-center mb-6 uppercase border-b border-red-900/40 pb-4 flex items-center justify-center gap-3">
+                  <span className="animate-pulse">🩸</span> กติกา: ปริศนาเลือดทิ้งรอย
+                </h3>
+
+                <div className="space-y-6">
+                  <section>
+                    <h4 className="text-red-400 font-bold mb-3 uppercase tracking-widest text-xs border-l-2 border-red-500 pl-2">📖 เนื้อเรื่องจำลอง (Storyline)</h4>
+                    <p className="bg-red-950/20 p-4 border border-red-900/30 rounded-lg italic text-gray-400 leading-relaxed">
+                      "ณ คฤหาสน์อันเงียบสงบ เกิดเหตุฆาตกรรมปริศนาขึ้นกลางดึก! ไม่มีใครเห็นหน้าคนร้าย แต่ได้พบ <span className="text-red-500 font-bold">'รอยหยดเลือด'</span> 2 รอย ซึ่งคาดว่าเป็นของผู้ตายและของคนร้ายที่บาดเจ็บจากการต่อสู้"
+                    </p>
+                    <div className="mt-3 bg-black p-4 rounded-lg border border-gray-800">
+                      <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-2 border-b border-gray-800 pb-1">ข้อมูลจากกองพิสูจน์หลักฐาน</p>
+                      <ul className="space-y-2 text-xs">
+                        <li><span className="text-red-500 font-bold">🩸 เลือดของผู้ตาย:</span> กรุ๊ป B</li>
+                        <li><span className="text-red-500 font-bold">🩸 เลือดของคนร้าย:</span> กรุ๊ป O <span className="text-gray-500 italic">(ไม่ตกตะกอนกับน้ำยาทั้งคู่)</span></li>
+                        <li className="pt-2 mt-2 border-t border-gray-800"><span className="text-purple-400 font-bold">🤫 ข้อมูลลับเพิ่มเติม:</span> มีรอยเลือดของ "คนสมรู้ร่วมคิด" หยดอยู่ด้วย เป็น เลือดกรุ๊ป AB</li>
+                      </ul>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h4 className="text-cyan-400 font-bold mb-3 uppercase tracking-widest text-xs border-l-2 border-cyan-500 pl-2">🎭 บทบาท (Roles & Skills)</h4>
+                    <div className="space-y-2 text-xs">
+                      <div className="bg-cyan-900/10 p-3 rounded border border-cyan-900/30">
+                        <strong className="text-cyan-400 block mb-1">🔬 เทคนิคการแพทย์ (เปิดเผยตัวได้)</strong>
+                        ขอ GM ตรวจเลือดใครก็ได้ 1 ครั้ง/รอบ (ห้ามพูดชื่อกรุ๊ปเลือดตรงๆ ต้องบอกเป็นอาการตีความ เช่น <span className="italic text-gray-500">"ฉันหยดยาแล้วไม่ตกตะกอนเลย"</span>)
+                      </div>
+                      <div className="bg-amber-900/10 p-3 rounded border border-amber-900/30">
+                        <strong className="text-amber-400 block mb-1">👁️ ผู้เห็นเหตุการณ์ (เปิดเผยตัวได้)</strong>
+                        รู้ว่าคนร้ายกรุ๊ปเลือดอะไรตั้งแต่เริ่ม ห้ามพูดเด็ดขาด! ตอบคำถามเพื่อนได้ 1 ข้อ ด้วยวิธีพยักหน้า/ส่ายหน้าเท่านั้น
+                      </div>
+                      <div className="bg-blue-900/10 p-3 rounded border border-blue-900/30">
+                        <strong className="text-blue-400 block mb-1">🕵️ นักสืบ</strong>
+                        แอบทักแชท/กระซิบถามลักษณะคนร้ายจาก GM ได้ 1 ครั้ง/รอบ (ถ้ามีนักสืบหลายคน ให้ตกลงกันว่ารอบนี้ใครจะเป็นตัวแทนถาม)
+                      </div>
+                      <div className="bg-gray-800/30 p-3 rounded border border-gray-700/50">
+                        <strong className="text-emerald-400 block mb-1">🧑‍🌾 ชาวบ้าน / 👤 ผู้ต้องสงสัย</strong>
+                        ไม่มีพลังพิเศษ เป็นแกนนำในการจับผิดหรือพยายามเนียนทำตัวให้ดูไม่น่าสงสัยที่สุด
+                      </div>
+                      <div className="bg-red-900/10 p-3 rounded border border-red-900/30">
+                        <strong className="text-red-500 block mb-1">🔪 ผู้ร้าย / 🃏 สมรู้ร่วมคิด (ฝ่ายร้าย)</strong>
+                        ผู้ร้าย: สั่งฆ่า 1 คนตอนหลับตา / สมรู้ร่วมคิด: สั่งใบ้(ปิดปาก) 1 คนตอนหลับตา
+                      </div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h4 className="text-purple-400 font-bold mb-3 uppercase tracking-widest text-xs border-l-2 border-purple-500 pl-2">🎮 วิธีการเล่น (Phases)</h4>
+                    <ul className="space-y-3 text-xs">
+                      <li className="flex gap-3 items-start"><span className="text-purple-500 font-black mt-0.5">1.</span> <div><strong className="text-gray-200">เฟสกลางคืน (Night):</strong> GM จะสั่งทุกคนหลับตา จากนั้นเรียก <span className="text-red-400">ผู้ร้าย</span> ลืมตามาชี้คนตาย 1 คน และเรียก <span className="text-purple-400">ผู้สมรู้ร่วมคิด</span> ลืมตามาชี้คนที่จะถูกปิดปาก 1 คน (ห้ามพูดในรอบต่อไป)</div></li>
+                      <li className="flex gap-3 items-start"><span className="text-purple-500 font-black mt-0.5">2.</span> <div><strong className="text-gray-200">เฟสกลางวัน (Day):</strong> GM ประกาศคนตายและคนถูกใบ้ จากนั้นเริ่มจับเวลาสืบสวน (5-10 นาที) ถกเถียงกันว่าใครน่าสงสัย</div></li>
+                      <li className="flex gap-3 items-start"><span className="text-purple-500 font-black mt-0.5">3.</span> <div><strong className="text-gray-200">การใช้สกิล:</strong> ระหว่างถกเถียง แพทย์สามารถประกาศตัวขอตรวจเลือดได้ และนักสืบสามารถแอบถามรูปพรรณจาก GM ได้</div></li>
+                      <li className="flex gap-3 items-start"><span className="text-purple-500 font-black mt-0.5">4.</span> <div><strong className="text-gray-200">การตัดสิน (Vote):</strong> หมดเวลาสืบสวน ให้ทุกคนช่วยกันโหวตคนที่คิดว่าเป็นคนร้าย ถ้าจับผู้ร้ายตัวจริงได้ <span className="text-emerald-400">ฝ่ายสืบสวนชนะ</span>! ถ้าโหวตผิด คนนั้นจะตกเป็นแพะและตายฟรี แล้วเกมจะวนกลับไปเฟสกลางคืนใหม่</div></li>
+                    </ul>
+                  </section>
+                </div>
+
+                <button onClick={() => setShowRules(false)} className="w-full mt-8 bg-red-900/80 hover:bg-red-800 text-white py-4 rounded-xl font-bold tracking-[0.2em] uppercase text-sm border border-red-500/50 transition-all glow-pulse">I UNDERSTAND</button>
               </div>
             </div>
           )}
@@ -1387,6 +1465,7 @@
                 </div>
                 <div className="flex gap-2 flex-wrap justify-center">
                   <button onClick={() => { setUvMode(!uvMode); vibrate(50); }} className={`text-[10px] font-bold tracking-widest px-3 py-2 rounded-full uppercase transition-colors ${uvMode ? 'bg-[#540099] text-white shadow-[0_0_15px_#540099]' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}>🔦 UV</button>
+                  <button onClick={() => setShowRules(true)} className="text-[10px] font-bold tracking-widest bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 px-3 py-2 rounded-full uppercase text-emerald-100 shadow-md">📖 Rules</button>
                   <button onClick={() => setShowGuide(true)} className="text-[10px] font-bold tracking-widest bg-blue-950 hover:bg-blue-900 border border-blue-800 px-3 py-2 rounded-full uppercase">📋 Guide</button>
                   <button onClick={() => setShowVotePanel(true)} className="text-[10px] font-bold tracking-widest bg-purple-950 hover:bg-purple-900 border border-purple-800 px-3 py-2 rounded-full uppercase">🗳️ Vote {voteCount > 0 && `(${voteCount})`}</button>
                   {myCard && <button onClick={returnCard} className="text-[10px] font-bold tracking-widest bg-gray-800 hover:bg-gray-700 border border-gray-600 px-3 py-2 rounded-full uppercase">↩️ Return</button>}
@@ -1424,8 +1503,8 @@
                     <span className="text-4xl text-blue-300">👁️‍🗨️</span>
                   </div>
                   <h3 className="text-2xl font-black font-mono tracking-widest text-[#aaccff] mb-2 uppercase drop-shadow-[0_0_10px_rgba(100,150,255,0.5)]">Spectator</h3>
-                  <p className="text-xs text-blue-200/50 text-center uppercase tracking-wider mb-8">Monitoring investigation...<br/>Classified clearance.</p>
-                  
+                  <p className="text-xs text-blue-200/50 text-center uppercase tracking-wider mb-8">Monitoring investigation...<br />Classified clearance.</p>
+
                   <div className="w-full bg-black/60 rounded-xl p-5 border border-gray-800">
                     <div className="flex justify-between items-center text-xs text-gray-400 font-mono tracking-widest mb-3">
                       <span>DRAWN CARDS</span>
@@ -1460,49 +1539,49 @@
                 <div className="flex flex-col items-center w-full max-w-sm mx-auto relative">
                   <ParticleBurst active={isFlipping} />
                   <div className={`perspective-1000 w-full px-6 z-50 ${justDrawn && !isHoveringCard ? 'animate-slide-up-in card-float' : ''}`}>
-                    <div 
+                    <div
                       ref={cardContainerRef}
                       onMouseMove={handleCardMouseMove}
                       onMouseLeave={handleCardMouseLeave}
                       onMouseEnter={handleCardMouseEnter}
-                      onClick={() => { 
-                        if (!isFlipping) { 
+                      onClick={() => {
+                        if (!isFlipping) {
                           playSound('flip'); vibrate([50, 50, 100]);
-                          setIsDimming(true); 
-                          setTimeout(() => { playSound('glitch'); setIsFlipping(true); }, 1000); 
+                          setIsDimming(true);
+                          setTimeout(() => { playSound('glitch'); setIsFlipping(true); }, 1000);
                           setTimeout(() => setIsFullyFlipped(true), 3500);
-                          setCardTilt({ rotateX: 0, rotateY: 0, scale: 1 }); 
-                        } 
+                          setCardTilt({ rotateX: 0, rotateY: 0, scale: 1 });
+                        }
                       }}
                       style={{
-                        transform: (isFlipping && !isFullyFlipped) 
-                           ? 'rotateY(180deg)' 
-                           : (isFullyFlipped 
-                              ? `rotateX(${-cardTilt.rotateX}deg) rotateY(${180 + cardTilt.rotateY}deg) scale(${cardTilt.scale})` 
-                              : `rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg) scale(${cardTilt.scale})`),
-                        transition: (isFlipping && !isFullyFlipped) 
-                           ? 'transform 2.5s cubic-bezier(0.4, 0, 0.2, 1)' 
-                           : (isHoveringCard ? 'transform 0.1s ease-out' : 'transform 0.5s ease-out'),
-                         boxShadow: isHoveringCard && (!isFlipping || isFullyFlipped) ? `${-cardTilt.rotateY}px ${cardTilt.rotateX}px 40px rgba(220, 38, 38, 0.4)` : 'none'
+                        transform: (isFlipping && !isFullyFlipped)
+                          ? 'rotateY(180deg)'
+                          : (isFullyFlipped
+                            ? `rotateX(${-cardTilt.rotateX}deg) rotateY(${180 + cardTilt.rotateY}deg) scale(${cardTilt.scale})`
+                            : `rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg) scale(${cardTilt.scale})`),
+                        transition: (isFlipping && !isFullyFlipped)
+                          ? 'transform 2.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                          : (isHoveringCard ? 'transform 0.1s ease-out' : 'transform 0.5s ease-out'),
+                        boxShadow: isHoveringCard && (!isFlipping || isFullyFlipped) ? `${-cardTilt.rotateY}px ${cardTilt.rotateX}px 40px rgba(220, 38, 38, 0.4)` : 'none'
                       }}
                       className={`relative w-full aspect-[2/3] transform-style-3d ${(!isFlipping || isFullyFlipped) ? 'cursor-pointer' : ''}`}>
-                      
+
                       {/* Glare effect - Back face (Hidden in UV) */}
                       {!isFullyFlipped && isHoveringCard && !uvMode && (
-                         <div 
-                           className="absolute inset-0 pointer-events-none rounded-2xl z-[60]"
-                           style={{
-                              background: `radial-gradient(circle at ${(cardTilt.rotateY / 30 + 1) * 50}% ${(cardTilt.rotateX / -30 + 1) * 50}%, rgba(255,255,255,0.3) 0%, transparent 70%)`,
-                              transition: 'background 0.1s ease-out'
-                           }}
-                         />
+                        <div
+                          className="absolute inset-0 pointer-events-none rounded-2xl z-[60]"
+                          style={{
+                            background: `radial-gradient(circle at ${(cardTilt.rotateY / 30 + 1) * 50}% ${(cardTilt.rotateX / -30 + 1) * 50}%, rgba(255,255,255,0.3) 0%, transparent 70%)`,
+                            transition: 'background 0.1s ease-out'
+                          }}
+                        />
                       )}
 
                       <div className="absolute inset-0 w-full h-full backface-hidden rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] border-2 border-[#5c4a38] bg-[#2a1b0d] flex flex-col items-center justify-center p-1 bg-cover bg-center overflow-hidden crisp-image transform-style-3d transition-colors" style={{ backgroundImage: `url("https://i.postimg.cc/yNy79y33/creation_2471378801.png")`, filter: uvMode ? 'hue-rotate(270deg) contrast(1.5)' : 'none' }}>
-                        
+
                         {/* UV Light hidden fingerprint */}
                         {uvMode && (
-                           <div className="absolute top-[20%] right-[30%] opacity-40 text-purple-300 text-6xl rotate-45 pointer-events-none">👆</div>
+                          <div className="absolute top-[20%] right-[30%] opacity-40 text-purple-300 text-6xl rotate-45 pointer-events-none">👆</div>
                         )}
 
                         <div className="w-full h-full border border-white/5 flex flex-col items-center justify-center bg-black/35 backdrop-blur-[1px] rounded-xl p-3 text-center">
@@ -1514,14 +1593,14 @@
                       <div className={`absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-2xl shadow-[0_0_60px_rgba(255,255,255,0.1)] border-4 flex flex-col overflow-hidden crisp-image ${myCard.color} border-[#0a0a0a] bg-cover bg-center transform-style-3d`} style={{ backgroundImage: `url("${myCard.image}")` }}>
                         {/* Glare effect - Front face */}
                         {isFullyFlipped && isHoveringCard && (
-                           <div 
-                             className="absolute inset-0 pointer-events-none z-[60]"
-                             style={{
-                                // Invert rotateY for front face because local X axis is flipped by rotateY(180)
-                                background: `radial-gradient(circle at ${(-cardTilt.rotateY / 30 + 1) * 50}% ${(cardTilt.rotateX / -30 + 1) * 50}%, rgba(255,255,255,0.2) 0%, transparent 70%)`,
-                                transition: 'background 0.1s ease-out'
-                             }}
-                           />
+                          <div
+                            className="absolute inset-0 pointer-events-none z-[60]"
+                            style={{
+                              // Invert rotateY for front face because local X axis is flipped by rotateY(180)
+                              background: `radial-gradient(circle at ${(-cardTilt.rotateY / 30 + 1) * 50}% ${(cardTilt.rotateX / -30 + 1) * 50}%, rgba(255,255,255,0.2) 0%, transparent 70%)`,
+                              transition: 'background 0.1s ease-out'
+                            }}
+                          />
                         )}
                         <div className="bg-white/95 text-black text-[10px] font-mono font-black text-center py-2.5 border-b-4 border-black tracking-[0.4em] z-10 uppercase">Identity Confirmed</div>
                         <div className="flex-1 flex flex-col items-end justify-end p-5 text-right bg-gradient-to-t from-black/90 via-black/30 to-transparent z-10">
@@ -1564,16 +1643,15 @@
                           </div>
 
                           <div className="mt-4 pt-4 border-t border-red-900/20">
-                            <a href="https://blood-green.vercel.app/" target="_blank" rel="noopener noreferrer" 
-                               className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-black text-[11px] md:text-xs uppercase tracking-widest transition-all shadow-lg border ${
-                                  myCard.role === 'เทคนิคการแพทย์' 
-                                    ? 'bg-cyan-900 hover:bg-cyan-800 text-cyan-50 border-cyan-500/50 glow-pulse' 
-                                    : 'bg-gray-900 hover:bg-gray-800 text-gray-300 border-gray-700'
-                               }`}>
-                               <span>{myCard.role === 'เทคนิคการแพทย์' ? '🔬 เข้าสู่ห้องแล็บตรวจเลือด (ใช้ทักษะ)' : '🩸 ดูผลตรวจเลือดจากแล็บ (Medical Lab)'}</span>
+                            <a href="https://blood-green.vercel.app/" target="_blank" rel="noopener noreferrer"
+                              className={`w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-black text-[11px] md:text-xs uppercase tracking-widest transition-all shadow-lg border ${myCard.role === 'เทคนิคการแพทย์'
+                                  ? 'bg-cyan-900 hover:bg-cyan-800 text-cyan-50 border-cyan-500/50 glow-pulse'
+                                  : 'bg-gray-900 hover:bg-gray-800 text-gray-300 border-gray-700'
+                                }`}>
+                              <span>{myCard.role === 'เทคนิคการแพทย์' ? '🔬 เข้าสู่ห้องแล็บตรวจเลือด (ใช้ทักษะ)' : '🩸 ดูผลตรวจเลือดจากแล็บ (Medical Lab)'}</span>
                             </a>
                             {myCard.role === 'เทคนิคการแพทย์' && (
-                               <p className="text-[9px] text-cyan-800 font-mono mt-2 text-center">** คุณคือผู้เดียวที่สามารถวิเคราะห์กรุ๊ปเลือดในสถานการณ์ฉุกเฉินได้ **</p>
+                              <p className="text-[9px] text-cyan-800 font-mono mt-2 text-center">** คุณคือผู้เดียวที่สามารถวิเคราะห์กรุ๊ปเลือดในสถานการณ์ฉุกเฉินได้ **</p>
                             )}
                           </div>
                         </div>
@@ -1595,4 +1673,3 @@
 </body>
 
 </html>
-
