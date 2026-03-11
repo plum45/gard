@@ -558,6 +558,15 @@
       { role: 'ชาวบ้าน', count: 4, color: 'bg-emerald-950', text: 'text-emerald-100', image: 'https://i.postimg.cc/fbfMXfSq/creation_2471392365.png', skill: 'พลังมวลชน (ห้ามเผยตัวตน): หากชาวบ้านโหวตพร้อมกัน 3 คน จะสามารถบังคับให้ผู้ต้องสงสัย 1 คนเปิดไพ่ได้', story: 'คุณแค่คนธรรมดาที่ดันซวยเข้ามาพัวพันกับคดี สิ่งเดียวที่คุณทำได้คือจับผิดคนให้ถูก' }
     ];
 
+    const shuffleArray = (array) => {
+      let newArray = [...array];
+      for (let i = newArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+      }
+      return newArray;
+    };
+
     const generateDeck = (config = null) => {
       let deck = [];
       const templatesConfig = config || ROLE_TEMPLATES;
@@ -797,7 +806,10 @@
                status: 'playing',
                version: Date.now()
             });
-         } catch(e) {}
+         } catch(e) {
+            console.error('Start game error:', e);
+            showToast('เริ่มเกมไม่สำเร็จ: ' + e.message, 'error');
+         }
          setLoading(false);
       };
 
