@@ -851,13 +851,18 @@
             if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
               await signInWithCustomToken(auth, __initial_auth_token);
             } else { await signInAnonymously(auth); }
+            setLoading(false);
           } catch (error) {
             console.error("Auth Error:", error);
             showToast("เข้าสู่ระบบไม่สำเร็จ กรุณารีเฟรชหน้า", "error");
+            setLoading(false);
           }
         };
         initAuth();
-        const unsubscribe = onAuthStateChanged(auth, setUser);
+        const unsubscribe = onAuthStateChanged(auth, u => {
+          setUser(u);
+          if (u) setLoading(false);
+        });
         return () => unsubscribe();
       }, []);
 
