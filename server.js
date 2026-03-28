@@ -148,20 +148,20 @@ console.log(`📡 Telegram Token: ${TELEGRAM_TOKEN ? TELEGRAM_TOKEN.substring(0,
 
 const bot = setupBot(TELEGRAM_TOKEN, CONFIG, { db, firebaseStatus, docDir, IS_RENDER });
 
-// ========== API Routes ==========
-app.get('/ping', (req, res) => res.send('STACY ALIVE! ' + new Date().toISOString()));
-
-app.get('/logs', (req, res) => {
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    const logs = logBuffer.length > 0 ? logBuffer.join('\n') : "--- No logs captured yet ---";
-    res.send(`--- STACY AI CLOUD DIAGNOSTICS ---\nServer Time: ${new Date().toLocaleString()}\nMode: ${IS_RELAY ? 'RELAY' : 'PRODUCTION'}\n\n` + logs);
-});
-
 // Express Setup
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ========== API Routes ==========
+app.get('/ping', (req, res) => res.send('STACY ALIVE! ' + new Date().toISOString()));
+
+app.get('/logs', (req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    const logs = (logBuffer && logBuffer.length > 0) ? logBuffer.join('\n') : "--- No logs captured yet ---";
+    res.send(`--- STACY AI CLOUD DIAGNOSTICS ---\nServer Time: ${new Date().toLocaleString()}\nMode: ${IS_RELAY ? 'RELAY' : 'PRODUCTION'}\n\n` + logs);
+});
 
 // Store conversation history
 const tgContexts = new Map();
@@ -237,7 +237,7 @@ async function processStacyAI(ctx, userMsg, fileContent = "") {
 (ต้องมี [ ] เสมอ) วันนี้คือ ${fullContextTime}`;
             isFastPath = true;
         } else if (lowerMsg.includes('ค้นหา') || lowerMsg.includes('หา') || lowerMsg.includes('search') || lowerMsg.includes('ราคา') || lowerMsg.includes('ทอง') || lowerMsg.includes('วิจัย')) {
-            systemPrompt = COMPLIANCE_STR + `หนูมีเครื่องมือค้นหาอัจฉริยะ (ห้ามปฏิเสธหัวข้อการค้นหาเด็ดขาด):
+            systemPrompt = COMPLIANCE_STR + `หนูมีเครื่องมือค้นหาอ็จฉริยะ (ห้ามปฏิเสธหัวข้อการค้นหาเด็ดขาด):
 - ค้นหาเว็บ (เร็ว+ครบ): [ACTION: WEB_SEARCH {"query": "..."}]
 - ค้นหา Google ตรงๆ: [ACTION: GOOGLE_SEARCH {"query": "..."}]
 - ค้นหาข่าวสด: [ACTION: NEWS_SEARCH {"query": "..."}]
