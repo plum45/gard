@@ -155,6 +155,7 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ========== API Routes ==========
+app.get('/', (req, res) => res.send('STACY AI - STATUS: ONLINE 🟢 ' + new Date().toISOString()));
 app.get('/ping', (req, res) => res.send('STACY ALIVE! ' + new Date().toISOString()));
 
 app.get('/logs', (req, res) => {
@@ -237,7 +238,7 @@ async function processStacyAI(ctx, userMsg, fileContent = "") {
 (ต้องมี [ ] เสมอ) วันนี้คือ ${fullContextTime}`;
             isFastPath = true;
         } else if (lowerMsg.includes('ค้นหา') || lowerMsg.includes('หา') || lowerMsg.includes('search') || lowerMsg.includes('ราคา') || lowerMsg.includes('ทอง') || lowerMsg.includes('วิจัย')) {
-            systemPrompt = COMPLIANCE_STR + `หนูมีเครื่องมือค้นหาอ็จฉริยะ (ห้ามปฏิเสธหัวข้อการค้นหาเด็ดขาด):
+            systemPrompt = COMPLIANCE_STR + `หนูมีเครื่องมือค้นหาอัจฉริยะ (ห้ามปฏิเสธหัวข้อการค้นหาเด็ดขาด):
 - ค้นหาเว็บ (เร็ว+ครบ): [ACTION: WEB_SEARCH {"query": "..."}]
 - ค้นหา Google ตรงๆ: [ACTION: GOOGLE_SEARCH {"query": "..."}]
 - ค้นหาข่าวสด: [ACTION: NEWS_SEARCH {"query": "..."}]
@@ -505,7 +506,8 @@ if (IS_RELAY && db) {
     console.error('   Please ensure config/serviceAccountKey.json exists.');
 }
 
-app.get('/ping', (req, res) => res.send('pong'));
+// Heartbeat ping
+// app.get('/ping', (req, res) => res.send('pong'));
 
 // Self-ping to stay awake on Render (Free Tier)
 if (IS_RENDER) {
