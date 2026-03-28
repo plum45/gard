@@ -142,6 +142,8 @@ const thaiDate = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long
 const fullContextTime = `${thaiDate} เวลา ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
 const HARDCODED_DATE_CONTEXT = `\n(IMPORTANT Context: ปัจจุบันคือปี พ.ศ. 2569 (2026). วันนี้คือ ${fullContextTime})\n`;
 
+const tgContexts = new Map();
+
 // Telegram Bridge & AI Logic
 async function processStacyAI(ctx, userMsg, fileContent = null) {
     const userId = ctx.from.id;
@@ -228,6 +230,9 @@ async function processStacyAI(ctx, userMsg, fileContent = null) {
         }
 
         console.log(`[AI Request] Model: ${CONFIG.MODEL}`);
+        let statusMsg = null;
+        if (!isFastPath) statusMsg = await ctx.reply("🔍 **Stacy กำลังประมวลผลข้อมูล...**").catch(() => null);
+        
         const typingInterval = setInterval(() => ctx.sendChatAction('typing').catch(() => {}), 4000);
 
         try {
@@ -262,7 +267,7 @@ async function processStacyAI(ctx, userMsg, fileContent = null) {
                 reasoning += reason;
 
                 const nowEdit = Date.now();
-                if (nowEdit - lastEditTime > 3000) {
+                if (statusMsg && nowEdit - lastEditTime > 3000) {
                     const displayMsg = fullReply.split('[ACTION:')[0]
                         .replace(/<think>[\s\S]*?<\/think>/g, '')
                         .replace(/<think>[\s\S]*/g, '')
@@ -350,11 +355,10 @@ async function processStacyAI(ctx, userMsg, fileContent = null) {
         }
     } catch (e) {
         console.error('AI Error:', e.message);
-        ctx.reply(`🙏 ขออภัยค่ะเจ้านาย บอทสดุดนิดหน่อยค่ะ\nError: ${(e.message || 'Unknown').substring(0, 100)}`);
+        ctx.reply(`🙏 ขออภัยค่ะเจ้านาย ระบบ AI ขัดข้องชั่วคราว\nError: ${(e.message || 'Unknown').substring(0, 100)}`);
     }
 }
 
-const tgContexts = new Map();
 if (bot && !IS_RELAY) {
     console.log("⚡ [PROD MODE] Starting Telegram Bot Listener...");
     bot.telegram.getMe().then(me => console.log(`📡 Connected as @${me.username}`)).catch(err => console.error(`❌ getMe Failed: ${err.message}`));
@@ -362,18 +366,68 @@ if (bot && !IS_RELAY) {
     bot.on('text', async (ctx) => {
         const userId = ctx.from.id;
         const msg = ctx.message.text.trim();
+        console.log(`[Telegram Message] From ${userId}: ${msg}`);
+
         if (msg === '/clear') {
             const userStore = tgContexts.get(userId);
-            if (userStore) { userStore.history = []; userStore.lastSkillFetch = 0; }
-            if (db) try { await db.collection('userActivities').doc(String(userId)).update({ 'memory.facts': [] }); } catch(e) {}
-            return ctx.reply("🧹 **ล้างสมองเรียบร้อยแล้วค่ะ!** ✨");
+            if (userStore) {
+                userStore.history = [];
+                userStore.lastSkillFetch = 0;
+            }
+            if (db) {
+                try {
+                    await db.collection('userActivities').doc(String(userId)).update({ 'memory.facts': [] });
+                } catch(e) {}
+            }
+            await ctx.reply("🧹 **ล้างสมองและประวัติการคุยให้เรียบร้อยแล้วค่ะ!**\nหนูจำอะไรก่อนหน้านี้ไม่ได้แล้วนะคะ เจ้านายเริ่มสั่งงานใหม่ได้เลยค่ะ ✨");
+            return;
         }
+        
         if (msg === '/status') {
-             // Status logic simplified for code brevity
-             ctx.reply(`📊 **System Status**\nLocal Time: ${new Date().toLocaleString('th-TH')}`);
-             return;
+            const fbIcon = firebaseStatus.includes('Connected') ? '🟢' : '🔴';
+            const calKey = path.join(configDir, 'google-calendar-key.json');
+            const calIcon = fs.existsSync(calKey) ? '🟢' : '🔴';
+            
+            let statusText = `📊 **Stacy System Status**\n\n`;
+            statusText += `${fbIcon} **Firebase:** ${firebaseStatus}\n`;
+            statusText += `${calIcon} **Google Calendar Key:** ${fs.existsSync(calKey) ? 'Found' : 'Missing'}\n`;
+            statusText += `🕒 **Local Time:** ${new Date().toLocaleString('th-TH')}\n`;
+            statusText += `🤖 **Model:** ${CONFIG.MODEL}\n`;
+            statusText += `🌐 **Environment:** ${IS_RENDER ? 'Render Cloud' : 'Local PC'}\n\n`;
+            statusText += `🔗 **Dashboard:** https://plum45.onrender.com`;
+            
+            return ctx.reply(statusText, { parse_mode: 'Markdown' });
         }
+
+        if (msg === '/ping') {
+            return ctx.reply(`🏓 **Pong!** หนูยังอยู่ค่ะเจ้านาย!\n🕒 **เวลา:** ${new Date().toLocaleString('th-TH')}\n🌐 **โหมด:** ${IS_RENDER ? 'Render Cloud' : 'Local PC'}`);
+        }
+
+        if (msg.startsWith('/think')) {
+            if (!tgContexts.has(userId)) tgContexts.set(userId, { history: [], skills: null, lastSkillFetch: 0 });
+            const userStore = tgContexts.get(userId);
+            
+            if (msg === '/think off' || msg === '/think 0' || msg === '/think false') {
+                userStore.thinkingMode = false;
+                return ctx.reply("✅ **ปิดโหมดคิดเชิงลึกแล้วค่ะ** (โหมดประหยัดเวลา/ตอบไว) ✨");
+            } else {
+                userStore.thinkingMode = true;
+                userStore.lastSkillFetch = 0;
+                return ctx.reply("🧠 **เปิดโหมดคิดเชิงลึกแล้วค่ะ** (โหมดวิเคราะห์/ละเอียด/มีระบบ) ✨");
+            }
+        }
+
         if (ctx.chat.type === 'private') await processStacyAI(ctx, msg);
+    });
+
+    bot.on('document', async (ctx) => {
+        const doc = ctx.message.document;
+        try {
+            await ctx.sendChatAction('typing');
+            const link = await ctx.telegram.getFileLink(doc.file_id);
+            const content = (await axios.get(link.href)).data;
+            await processStacyAI(ctx, ctx.message.caption || "โปรดสรุปเอกสารนี้", content);
+        } catch (e) { ctx.reply('❌ หนูอ่านเอกสารนี้ไม่ได้ค่ะ'); }
     });
 
     bot.launch({ dropPendingUpdates: true })
@@ -381,16 +435,26 @@ if (bot && !IS_RELAY) {
         .catch(err => console.error('❌ Bot Launch Error:', err.message));
 }
 
+// ========== RELAY MODE: Local PC Listener ==========
 if (IS_RELAY && db) {
     console.log('🖐️ Starting Local Relay Listener...');
+    // In relay mode, we also initialize bot for sending results back to Telegram
     const relayBot = bot || null;
     startRelayListener(db, relayBot);
     console.log('🖐️ Relay is active. This PC will execute commands from Cloud Stacy.');
+    console.log('🖐️ Keep this window open to maintain the relay connection.');
+} else if (IS_RELAY && !db) {
+    console.error('❌ [Relay] Firebase is not connected! Relay cannot start without Firebase.');
+    console.error('   Please ensure config/serviceAccountKey.json exists.');
 }
 
 app.get('/ping', (req, res) => res.send('pong'));
+
+// Self-ping to stay awake on Render (Free Tier)
 if (IS_RENDER) {
-    setInterval(() => axios.get(`https://plum45.onrender.com/ping`).catch(() => {}), 10 * 60 * 1000);
+    setInterval(() => {
+        axios.get(`https://plum45.onrender.com/ping`).catch(() => {});
+    }, 10 * 60 * 1000); // Every 10 minutes
 }
 app.listen(CONFIG.PORT, () => console.log(`📡 Stacy Web Dashboard on port ${CONFIG.PORT}`));
 
